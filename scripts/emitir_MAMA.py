@@ -258,6 +258,21 @@ def run(playwright: Playwright) -> None:
         fast_fill(page2.locator("#detalle_precio1"),      precio,  page=page2)
         safe_click(page2.get_by_role("button", name="Continuar >"), page=page2)
 
+        # Confirmación manual si corre localmente, automática en GitHub Actions
+        import sys
+        if sys.stdin.isatty():
+            print(f"\n{'='*55}")
+            print(f"  Revisá el browser — factura lista para emitir:")
+            print(f"  Receptor: {doc_receptor} | ${precio} | {fecha_cbte}")
+            print(f"{'='*55}")
+            respuesta = input("  ¿Emitir esta factura? [s = SÍ / cualquier otra = saltear]: ").strip().lower()
+            if respuesta != "s":
+                print("⏭️  Factura salteada.")
+                try: page2.close()
+                except: pass
+                page2 = abrir_comprobantes_en_linea(page1, current_contribuyente)
+                continue
+
         print("   🖱️  Confirmando...")
         confirmar_y_emitir(page2)
         wait_comprobante_generado(page2, timeout=180000)
