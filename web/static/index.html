@@ -298,6 +298,8 @@ function cerrarModal() {
 }
 
 async function confirmar() {
+  const n = sel.size;
+  if (!confirm(`¿Emitir ${n} factura${n>1?"s":""} en ARCA?\n\nEsta acción no se puede deshacer.`)) return;
   const ids = [...sel].map(Number);
   document.getElementById("mfoot").innerHTML = "";
   document.getElementById("mbody").innerHTML += `
