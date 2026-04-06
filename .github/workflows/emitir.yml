@@ -1,0 +1,61 @@
+name: Emitir Facturas ARCA
+
+on:
+  workflow_dispatch:
+    inputs:
+      tipo:
+        description: 'Qué emitir'
+        required: true
+        default: 'AMBOS'
+        type: choice
+        options:
+          - AMBOS
+          - MAMA
+          - PAPA
+      ids:
+        description: 'IDs de Supabase a emitir (coma separados). Vacío = todos los pendientes del mes.'
+        required: false
+        default: ''
+
+concurrency:
+  group: emitir-arca
+  cancel-in-progress: false   # no cancelar si ya hay uno corriendo
+
+jobs:
+  emitir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: |
+          pip install -r requirements-playwright.txt
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: Emitir MAMA
+        if: ${{ inputs.tipo == 'MAMA' || inputs.tipo == 'AMBOS' }}
+        env:
+          ARCA_CUIT_MAMA:       ${{ secrets.ARCA_CUIT_MAMA }}
+          ARCA_CLAVE_MAMA:      ${{ secrets.ARCA_CLAVE_MAMA }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/emitir_MAMA.py --ids "${{ inputs.ids }}"
+
+      - name: Emitir PAPA
+        if: ${{ inputs.tipo == 'PAPA' || inputs.tipo == 'AMBOS' }}
+        env:
+          ARCA_CUIT_MAMA:       ${{ secrets.ARCA_CUIT_MAMA }}
+          ARCA_CLAVE_MAMA:      ${{ secrets.ARCA_CLAVE_MAMA }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/emitir_PAPA.py --ids "${{ inputs.ids }}"

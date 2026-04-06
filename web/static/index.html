@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Facturas ARCA</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #f0f2f5; --card: #fff; --primary: #1a56db; --success: #0e9f6e;
+    --danger: #e02424; --warning: #f59e0b; --gray: #6b7280;
+    --border: #e5e7eb; --text: #111827; --sub: #6b7280; --r: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         background: var(--bg); color: var(--text); font-size: 15px; }
+
+  header { background: var(--primary); color: #fff; padding: 16px 20px 14px;
+           position: sticky; top: 0; z-index: 10;
+           display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; font-weight: 700; flex: 1; }
+  header select { border: none; border-radius: 8px; padding: 6px 10px; font-size: 14px;
+                  background: rgba(255,255,255,.2); color: #fff; cursor: pointer; outline: none; }
+  header select option { background: #1e3a8a; }
+
+  .chips { margin: 14px 16px 0; display: flex; gap: 10px; }
+  .chip  { flex: 1; border-radius: 10px; padding: 10px 14px; font-size: 13px;
+           font-weight: 600; text-align: center; display: flex; flex-direction: column; gap: 2px; }
+  .chip span { font-size: 22px; font-weight: 800; }
+  .chip.p { background: #fff7ed; color: var(--warning); }
+  .chip.e { background: #f0fdf4; color: var(--success); }
+  .chip.t { background: #eff6ff; color: var(--primary); }
+
+  .seccion { margin: 14px 16px 0; }
+  .sec-tit  { font-size: 12px; font-weight: 700; letter-spacing: .06em;
+              text-transform: uppercase; color: var(--sub); margin-bottom: 8px; padding-left: 2px; }
+
+  .factura { background: var(--card); border-radius: var(--r); padding: 13px 14px;
+             margin-bottom: 8px; border: 2px solid transparent;
+             display: flex; align-items: flex-start; gap: 12px;
+             cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+  .factura.sel { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,86,219,.12); }
+  .factura.emi { opacity: .55; cursor: default; }
+
+  .chk { width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0; margin-top: 1px;
+         border: 2px solid var(--border); background: #fff;
+         display: flex; align-items: center; justify-content: center; transition: .15s; }
+  .sel .chk { background: var(--primary); border-color: var(--primary); }
+  .chk svg { display: none; }
+  .sel .chk svg { display: block; }
+
+  .fi { flex: 1; min-width: 0; }
+  .ft { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .fr { font-weight: 700; font-size: 15px; }
+  .fp { font-weight: 800; font-size: 16px; color: var(--primary); white-space: nowrap; }
+  .fd { font-size: 13px; color: var(--sub); margin-top: 3px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fb { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+  .ff { font-size: 12px; color: var(--sub); }
+  .badge { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 20px; }
+  .badge.e { background: #d1fae5; color: #065f46; }
+  .badge.p { background: #fff3cd; color: #92400e; }
+
+  .vacio { text-align: center; padding: 40px 20px; color: var(--sub); font-size: 14px; }
+
+  .barra { position: fixed; bottom: 0; left: 0; right: 0;
+           padding: 12px 16px max(env(safe-area-inset-bottom),12px);
+           background: var(--card); border-top: 1px solid var(--border);
+           box-shadow: 0 -2px 12px rgba(0,0,0,.08); }
+  .btn-emit { width: 100%; padding: 15px; border: none; border-radius: var(--r);
+              background: var(--primary); color: #fff; font-size: 16px; font-weight: 700;
+              cursor: pointer; transition: opacity .15s; }
+  .btn-emit:disabled { opacity: .4; cursor: default; }
+  .btn-emit:not(:disabled):active { opacity: .85; }
+  .scroll { padding-bottom: 100px; }
+
+  /* Status bar del workflow */
+  .wf-bar { margin: 10px 16px 0; padding: 10px 14px; border-radius: 10px;
+            font-size: 13px; font-weight: 600; display: none; align-items: center; gap: 8px; }
+  .wf-bar.show { display: flex; }
+  .wf-bar.running { background: #fefce8; color: #92400e; }
+  .wf-bar.success { background: #f0fdf4; color: #065f46; }
+  .wf-bar.failure { background: #fef2f2; color: #991b1b; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { width: 16px; height: 16px; border: 2.5px solid currentColor;
+          border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
+
+  /* Modal */
+  .overlay { display: none; position: fixed; inset: 0; z-index: 100;
+             background: rgba(0,0,0,.5); align-items: flex-end; }
+  .overlay.on { display: flex; }
+  .modal { background: var(--card); border-radius: 20px 20px 0 0; width: 100%;
+           max-height: 85vh; display: flex; flex-direction: column;
+           padding: 0 0 max(env(safe-area-inset-bottom),20px); }
+  .mh { padding: 18px 20px 14px; border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; justify-content: space-between; }
+  .mh h2 { font-size: 17px; font-weight: 700; }
+  .mc { font-size: 22px; color: var(--sub); cursor: pointer; background: none; border: none; }
+  .mb { padding: 16px 20px; overflow-y: auto; flex: 1; }
+  .mf { padding: 12px 20px 0; display: flex; gap: 10px; }
+  .btn-cancel { flex: 1; padding: 14px; border: 2px solid var(--border); border-radius: var(--r);
+                background: none; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn-ok { flex: 2; padding: 14px; border: none; border-radius: var(--r);
+            background: var(--primary); color: #fff; font-size: 15px; font-weight: 700;
+            cursor: pointer; }
+  .btn-ok:active { opacity: .85; }
+  .lista-m { list-style: none; }
+  .lista-m li { padding: 10px 0; border-bottom: 1px solid var(--border);
+                font-size: 14px; display: flex; justify-content: space-between; }
+  .lista-m li:last-child { border: none; }
+  .lmr { font-weight: 600; }
+  .lmd { color: var(--sub); font-size: 13px; margin-top: 2px; }
+  .lmp { font-weight: 700; color: var(--primary); }
+  .lmt { font-size: 11px; color: var(--sub); font-weight: 600; }
+  .log { background: #0f172a; color: #e2e8f0; font-family: monospace; font-size: 12px;
+         border-radius: 10px; padding: 12px; max-height: 260px; overflow-y: auto;
+         white-space: pre-wrap; word-break: break-all; margin-top: 12px; }
+  .ls { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+  .ls.r { color: var(--warning); } .ls.ok { color: var(--success); } .ls.er { color: var(--danger); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📋 Facturas ARCA</h1>
+  <select id="selMes" onchange="cargar()"></select>
+</header>
+
+<div class="scroll">
+  <div class="chips">
+    <div class="chip p"><span id="cp">—</span>Pendientes</div>
+    <div class="chip e"><span id="ce">—</span>Emitidas</div>
+    <div class="chip t"><span id="ct">—</span>Total</div>
+  </div>
+
+  <div class="wf-bar" id="wfBar">
+    <div class="spin" id="wfSpin"></div>
+    <span id="wfMsg">Workflow en curso...</span>
+    <a id="wfLink" href="#" target="_blank" style="margin-left:auto;font-size:12px;color:inherit">ver ↗</a>
+  </div>
+
+  <div id="contenido"></div>
+</div>
+
+<div class="barra">
+  <button class="btn-emit" id="btnEmit" disabled onclick="abrirModal()">
+    Seleccioná facturas para emitir
+  </button>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="mh">
+      <h2 id="mtit">Confirmar emisión</h2>
+      <button class="mc" onclick="cerrarModal()">✕</button>
+    </div>
+    <div class="mb" id="mbody"></div>
+    <div class="mf" id="mfoot">
+      <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-ok" onclick="confirmar()">Emitir ahora</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://zqwkznlgbkofsrygqezk.supabase.co";
+const SUPABASE_KEY = "sb_publishable_m7ZBGHpqSq-URme1Nc9JHw_b4EfF0-_";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let todas = [], sel = new Set(), polTimer = null;
+
+// ─── Init ──────────────────────────────────────────────────────────────────
+async function init() {
+  // Obtener meses distintos desde Supabase
+  const { data } = await sb.from("facturas").select("fecha_cbte").order("fecha_cbte", { ascending: false });
+  const meses = [...new Set((data || []).map(r => (r.fecha_cbte || "").slice(0, 7)).filter(Boolean))];
+
+  const selEl = document.getElementById("selMes");
+  const ahora = new Date().toISOString().slice(0, 7);
+  (meses.length ? meses : [ahora]).forEach(m => {
+    const o = document.createElement("option");
+    o.value = m; o.text = fmtMes(m);
+    if (m === ahora) o.selected = true;
+    selEl.appendChild(o);
+  });
+  cargar();
+  verificarWorkflow();
+}
+
+function fmtMes(ym) {
+  const [y, m] = ym.split("-");
+  const n = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
+             "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  return `${n[parseInt(m)-1]} ${y}`;
+}
+
+// ─── Cargar facturas ──────────────────────────────────────────────────────
+async function cargar() {
+  sel.clear();
+  const mes = document.getElementById("selMes").value;
+  document.getElementById("contenido").innerHTML = '<div class="vacio">Cargando...</div>';
+
+  const desde = `${mes}-01`, hasta = `${mes}-31`;
+  const { data, error } = await sb.from("facturas").select("*")
+    .gte("fecha_cbte", desde).lte("fecha_cbte", hasta)
+    .order("tipo").order("fecha_cbte");
+
+  if (error) {
+    document.getElementById("contenido").innerHTML = '<div class="vacio">Error al cargar.</div>';
+    return;
+  }
+  todas = data || [];
+  render();
+}
+
+function render() {
+  const pend = todas.filter(f => !f.emitida).length;
+  const emit = todas.filter(f =>  f.emitida).length;
+  document.getElementById("cp").textContent = pend;
+  document.getElementById("ce").textContent = emit;
+  document.getElementById("ct").textContent = todas.length;
+
+  if (!todas.length) {
+    document.getElementById("contenido").innerHTML = '<div class="vacio">No hay facturas para este mes.</div>';
+    actuBtn(); return;
+  }
+
+  const grupos = {};
+  todas.forEach(f => { if (!grupos[f.tipo]) grupos[f.tipo]=[]; grupos[f.tipo].push(f); });
+
+  let h = "";
+  for (const tipo of ["MAMA","PAPA"]) {
+    if (!grupos[tipo]) continue;
+    h += `<div class="seccion"><div class="sec-tit">${tipo}</div>`;
+    grupos[tipo].forEach(f => {
+      const k = String(f.id);
+      const s = sel.has(k);
+      const p = parseFloat(String(f.precio).replace(",",".")) || 0;
+      const pf = p.toLocaleString("es-AR",{style:"currency",currency:"ARS",minimumFractionDigits:0});
+      h += `<div class="factura ${f.emitida?"emi":""} ${s?"sel":""}" id="c${k}"
+                 onclick="${f.emitida?"":"toggle('"+k+"')"}">
+        <div class="chk"><svg width="12" height="10" viewBox="0 0 12 10" fill="none">
+          <path d="M1 5l3.5 3.5L11 1" stroke="white" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+        <div class="fi">
+          <div class="ft"><span class="fr">${esc(f.doc_receptor)}</span><span class="fp">${pf}</span></div>
+          <div class="fd">${esc(f.detalle)}</div>
+          <div class="fb">
+            <span class="ff">${esc(f.fecha_cbte||"")} · ${esc((f.contribuyente_btn||"").slice(0,30))}</span>
+            <span class="badge ${f.emitida?"e":"p"}">${f.emitida?"✓ Emitida":"Pendiente"}</span>
+          </div>
+        </div></div>`;
+    });
+    h += `</div>`;
+  }
+  document.getElementById("contenido").innerHTML = h;
+  actuBtn();
+}
+
+function toggle(k) {
+  sel.has(k) ? sel.delete(k) : sel.add(k);
+  document.getElementById("c"+k)?.classList.toggle("sel");
+  actuBtn();
+}
+
+function actuBtn() {
+  const n = sel.size, b = document.getElementById("btnEmit");
+  b.disabled = !n;
+  b.textContent = n ? `Emitir ${n} factura${n>1?"s":""} seleccionada${n>1?"s":""}` : "Seleccioná facturas para emitir";
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────
+function abrirModal() {
+  const lista = [...sel].map(k => todas.find(f => String(f.id)===k)).filter(Boolean);
+  let tot = 0;
+  const li = lista.map(f => {
+    const p = parseFloat(String(f.precio).replace(",",".")) || 0; tot += p;
+    return `<li><div><div class="lmr">${esc(f.doc_receptor)}</div>
+      <div class="lmd">${esc(f.detalle.slice(0,50))}</div></div>
+      <div style="text-align:right"><div class="lmp">$${p.toLocaleString("es-AR")}</div>
+      <div class="lmt">${f.tipo}</div></div></li>`;
+  }).join("");
+  const totf = tot.toLocaleString("es-AR",{style:"currency",currency:"ARS",minimumFractionDigits:0});
+  document.getElementById("mtit").textContent = `Emitir ${lista.length} factura${lista.length>1?"s":""}`;
+  document.getElementById("mbody").innerHTML = `
+    <p style="font-size:13px;color:var(--sub);margin-bottom:12px">
+      El workflow de GitHub Actions va a correr y emitir estas facturas en ARCA.</p>
+    <ul class="lista-m">${li}</ul>
+    <p style="text-align:right;font-weight:700;font-size:16px;margin-top:12px;color:var(--primary)">Total: ${totf}</p>`;
+  document.getElementById("mfoot").innerHTML = `
+    <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
+    <button class="btn-ok" onclick="confirmar()">Emitir ahora</button>`;
+  document.getElementById("overlay").classList.add("on");
+}
+
+function cerrarModal() {
+  document.getElementById("overlay").classList.remove("on");
+}
+
+async function confirmar() {
+  const ids = [...sel].map(Number);
+  document.getElementById("mfoot").innerHTML = "";
+  document.getElementById("mbody").innerHTML += `
+    <div class="ls r" id="ls">⏳ Enviando a GitHub Actions...</div>
+    <div class="log" id="lg">Iniciando...</div>`;
+
+  const resp = await fetch("/api/emitir", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ ids, tipo: "AMBOS" }),
+  }).then(r=>r.json()).catch(e => ({error: e.message}));
+
+  if (resp.error) {
+    document.getElementById("ls").className = "ls er";
+    document.getElementById("ls").textContent = "❌ " + resp.error;
+    return;
+  }
+
+  document.getElementById("ls").textContent = "⏳ Workflow enviado — esperando inicio...";
+  document.getElementById("lg").textContent = "GitHub Actions recibió la solicitud.\nEsperá ~30s para que arranque...";
+  sel.clear(); actuBtn();
+  iniciarPolling(true);
+}
+
+// ─── Polling del workflow ─────────────────────────────────────────────────
+function iniciarPolling(desdModal = false) {
+  if (polTimer) clearInterval(polTimer);
+  polTimer = setInterval(() => pollWorkflow(desdModal), 5000);
+}
+
+async function pollWorkflow(desdeModal) {
+  const est = await fetch("/api/workflow/estado").then(r=>r.json()).catch(()=>null);
+  if (!est) return;
+
+  // Actualizar barra superior
+  const bar = document.getElementById("wfBar");
+  const msg = document.getElementById("wfMsg");
+  const lnk = document.getElementById("wfLink");
+  const spn = document.getElementById("wfSpin");
+  bar.className = "wf-bar show";
+
+  if (est.status === "completed") {
+    clearInterval(polTimer); polTimer = null;
+    bar.classList.add(est.conclusion === "success" ? "success" : "failure");
+    spn.style.display = "none";
+    msg.textContent = est.conclusion === "success" ? "✅ Workflow completado exitosamente" : "❌ Workflow terminó con error";
+    lnk.href = est.url;
+    cargar();  // refrescar lista
+
+    if (desdeModal) {
+      const ls = document.getElementById("ls");
+      if (ls) {
+        ls.className = est.conclusion === "success" ? "ls ok" : "ls er";
+        ls.textContent = est.conclusion === "success" ? "✅ Facturas emitidas correctamente" : "❌ Hubo un error — revisá GitHub Actions";
+        document.getElementById("mfoot").innerHTML = `
+          <button class="btn-ok" style="flex:1" onclick="cerrarModal();cargar()">Cerrar</button>`;
+      }
+    }
+  } else {
+    bar.classList.add("running");
+    spn.style.display = "";
+    msg.textContent = est.status === "in_progress" ? "⏳ Emitiendo facturas en ARCA..." : "⏳ Workflow en cola...";
+    lnk.href = est.url || "#";
+  }
+}
+
+async function verificarWorkflow() {
+  // Al cargar, ver si hay un workflow reciente corriendo
+  const est = await fetch("/api/workflow/estado").then(r=>r.json()).catch(()=>null);
+  if (!est || est.status === "none" || est.status === "completed") return;
+  iniciarPolling(false);
+}
+
+// ─── Utils ────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+init();
+</script>
+</body>
+</html>
