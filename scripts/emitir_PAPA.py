@@ -102,7 +102,7 @@ def confirmar_y_emitir(page):
     safe_click(btn1, page=page)
     print("   ✔ Confirmar Datos...")
     safe_wait(page, 300, 600)
-    btn2 = page.get_by_role("button", name="Confirmar")
+    btn2 = page.get_by_role("button", name="Confirmar", exact=True)
     btn2.wait_for(state="visible", timeout=30000)
     safe_click(btn2, page=page)
     print("   ✔ Confirmar (diálogo)")
