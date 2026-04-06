@@ -201,7 +201,9 @@ async function cargar() {
   const mes = document.getElementById("selMes").value;
   document.getElementById("contenido").innerHTML = '<div class="vacio">Cargando...</div>';
 
-  const desde = `${mes}-01`, hasta = `${mes}-31`;
+  const [y, m] = mes.split("-");
+  const desde = `${mes}-01`;
+  const hasta = new Date(parseInt(y), parseInt(m), 0).toISOString().slice(0, 10); // último día real del mes
   const { data, error } = await sb.from("facturas").select("*")
     .gte("fecha_cbte", desde).lte("fecha_cbte", hasta)
     .order("tipo").order("fecha_cbte");
