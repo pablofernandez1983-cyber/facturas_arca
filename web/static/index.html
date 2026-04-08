@@ -271,12 +271,21 @@
 
 <script>
 // ─── Login ────────────────────────────────────────────────────────────────
-const PIN_CORRECTO = "4850";
-
-function verificarPin() {
+async function verificarPin() {
   const input = document.getElementById("pinInput");
   const err   = document.getElementById("loginError");
-  if (input.value === PIN_CORRECTO) {
+  const btn   = document.querySelector("#loginScreen button");
+  btn.disabled = true;
+
+  const resp = await fetch("/api/login", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ pin: input.value }),
+  }).then(r => r.json()).catch(() => ({ error: "Error de conexión" }));
+
+  btn.disabled = false;
+
+  if (resp.ok) {
     sessionStorage.setItem("auth", "ok");
     document.getElementById("loginScreen").classList.add("oculto");
     err.textContent = "";
@@ -284,7 +293,7 @@ function verificarPin() {
     init();
   } else {
     input.classList.add("error");
-    err.textContent = "Contraseña incorrecta";
+    err.textContent = resp.error || "Contraseña incorrecta";
     input.value = "";
     input.focus();
   }

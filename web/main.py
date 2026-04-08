@@ -19,6 +19,7 @@ SUPABASE_URL      = os.environ["SUPABASE_URL"]
 SUPABASE_ANON_KEY = os.environ["SUPABASE_ANON_KEY"]
 GITHUB_PAT        = os.environ["GITHUB_PAT"]
 GITHUB_REPO       = os.environ.get("GITHUB_REPO", "pablofernandez1983-cyber/facturas_arca")
+APP_PIN           = os.environ.get("APP_PIN", "4850")
 WORKFLOW_FILE     = "emitir.yml"
 
 app = FastAPI()
@@ -30,6 +31,14 @@ app.mount("/static", StaticFiles(directory=STATIC), name="static")
 @app.get("/")
 def root():
     return FileResponse(os.path.join(STATIC, "index.html"))
+
+
+@app.post("/api/login")
+async def login(request: Request):
+    body = await request.json()
+    if body.get("pin") == APP_PIN:
+        return {"ok": True}
+    return JSONResponse(status_code=401, content={"error": "Contraseña incorrecta"})
 
 
 @app.post("/api/emitir")
