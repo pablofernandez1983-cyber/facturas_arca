@@ -118,6 +118,27 @@
   .ls { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
   .ls.r { color: var(--warning); } .ls.ok { color: var(--success); } .ls.er { color: var(--danger); }
 
+  /* Botón editar en card */
+  .btn-edit { background: none; border: none; cursor: pointer; font-size: 15px;
+              padding: 2px 4px; border-radius: 6px; color: var(--sub);
+              flex-shrink: 0; align-self: flex-start; margin-top: 0; }
+  .btn-edit:active { background: var(--border); }
+
+  /* Modal de edición */
+  .edit-field { margin-bottom: 14px; }
+  .edit-field label { display: block; font-size: 12px; font-weight: 700;
+                      text-transform: uppercase; letter-spacing: .05em;
+                      color: var(--sub); margin-bottom: 5px; }
+  .edit-field input, .edit-field textarea {
+    width: 100%; padding: 10px 12px; border: 2px solid var(--border);
+    border-radius: 10px; font-size: 15px; outline: none; font-family: inherit;
+    transition: border-color .15s;
+  }
+  .edit-field input:focus, .edit-field textarea:focus { border-color: var(--primary); }
+  .edit-field textarea { resize: vertical; min-height: 70px; }
+  .edit-row { display: flex; gap: 10px; }
+  .edit-row .edit-field { flex: 1; }
+
   /* Pantalla de contraseña */
   #loginScreen {
     position: fixed; inset: 0; z-index: 999;
@@ -147,6 +168,54 @@
 </style>
 </head>
 <body>
+
+<div class="overlay" id="editOverlay">
+  <div class="modal">
+    <div class="mh">
+      <h2>Editar factura</h2>
+      <button class="mc" onclick="cerrarEdit()">✕</button>
+    </div>
+    <div class="mb">
+      <div class="edit-field">
+        <label>Receptor (CUIT / Doc)</label>
+        <input type="text" id="eReceptor" inputmode="numeric">
+      </div>
+      <div class="edit-field">
+        <label>Detalle</label>
+        <textarea id="eDetalle"></textarea>
+      </div>
+      <div class="edit-row">
+        <div class="edit-field">
+          <label>Precio</label>
+          <input type="number" id="ePrecio" step="0.01">
+        </div>
+        <div class="edit-field">
+          <label>Fecha comprobante</label>
+          <input type="date" id="eFecha">
+        </div>
+      </div>
+      <div class="edit-row">
+        <div class="edit-field">
+          <label>Desde</label>
+          <input type="date" id="eDesde">
+        </div>
+        <div class="edit-field">
+          <label>Hasta</label>
+          <input type="date" id="eHasta">
+        </div>
+      </div>
+      <div class="edit-field">
+        <label>Vto. pago</label>
+        <input type="date" id="eVto">
+      </div>
+      <div id="editError" style="color:var(--danger);font-size:13px;font-weight:600;min-height:18px;margin-top:4px"></div>
+    </div>
+    <div class="mf">
+      <button class="btn-cancel" onclick="cerrarEdit()">Cancelar</button>
+      <button class="btn-ok" onclick="guardarEdicion()">Guardar</button>
+    </div>
+  </div>
+</div>
 
 <div id="loginScreen">
   <div class="login-card">
@@ -313,10 +382,13 @@ function render() {
           <div class="ft"><span class="fr">${esc(f.doc_receptor)}</span><span class="fp">${pf}</span></div>
           <div class="fd">${esc(f.detalle)}</div>
           <div class="fb">
-            <span class="ff">${esc(f.fecha_cbte||"")} · ${esc((f.contribuyente_btn||"").slice(0,30))}</span>
+            <span class="ff">${esc(f.fecha_cbte||"")}</span>
             <span class="badge ${f.emitida?"e":"p"}">${f.emitida?"✓ Emitida":"Pendiente"}</span>
           </div>
-        </div></div>`;
+        </div>
+        ${f.emitida?"":
+          `<button class="btn-edit" onclick="event.stopPropagation();editarFactura('${k}')" title="Editar">✏️</button>`
+        }</div>`;
     });
     h += `</div>`;
   }
@@ -438,6 +510,61 @@ async function verificarWorkflow() {
   const est = await fetch("/api/workflow/estado").then(r=>r.json()).catch(()=>null);
   if (!est || est.status === "none" || est.status === "completed") return;
   iniciarPolling(false);
+}
+
+// ─── Edición de factura ───────────────────────────────────────────────────
+let editId = null;
+
+function editarFactura(k) {
+  const f = todas.find(x => String(x.id) === k);
+  if (!f) return;
+  editId = f.id;
+  document.getElementById("eReceptor").value = f.doc_receptor || "";
+  document.getElementById("eDetalle").value  = f.detalle      || "";
+  document.getElementById("ePrecio").value   = f.precio       || "";
+  document.getElementById("eFecha").value    = f.fecha_cbte   || "";
+  document.getElementById("eDesde").value    = f.desde        || "";
+  document.getElementById("eHasta").value    = f.hasta        || "";
+  document.getElementById("eVto").value      = f.vto_pago     || "";
+  document.getElementById("editError").textContent = "";
+  document.getElementById("editOverlay").classList.add("on");
+}
+
+function cerrarEdit() {
+  document.getElementById("editOverlay").classList.remove("on");
+  editId = null;
+}
+
+async function guardarEdicion() {
+  if (!editId) return;
+  const btn = document.querySelector("#editOverlay .btn-ok");
+  btn.disabled = true; btn.textContent = "Guardando...";
+
+  const body = {
+    doc_receptor: document.getElementById("eReceptor").value.trim(),
+    detalle:      document.getElementById("eDetalle").value.trim(),
+    precio:       parseFloat(document.getElementById("ePrecio").value) || null,
+    fecha_cbte:   document.getElementById("eFecha").value  || null,
+    desde:        document.getElementById("eDesde").value  || null,
+    hasta:        document.getElementById("eHasta").value  || null,
+    vto_pago:     document.getElementById("eVto").value    || null,
+  };
+
+  const resp = await fetch(`/api/factura/${editId}`, {
+    method: "PATCH",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body),
+  }).then(r => r.json()).catch(e => ({error: e.message}));
+
+  btn.disabled = false; btn.textContent = "Guardar";
+
+  if (resp.error) {
+    document.getElementById("editError").textContent = "Error: " + resp.error;
+    return;
+  }
+
+  cerrarEdit();
+  await cargar();
 }
 
 // ─── Utils ────────────────────────────────────────────────────────────────

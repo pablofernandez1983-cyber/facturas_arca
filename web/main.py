@@ -71,6 +71,31 @@ async def emitir(request: Request):
     )
 
 
+CAMPOS_EDITABLES = {"doc_receptor", "detalle", "precio", "fecha_cbte", "desde", "hasta", "vto_pago"}
+
+@app.patch("/api/factura/{factura_id}")
+async def update_factura(factura_id: int, request: Request):
+    body = await request.json()
+    update_data = {k: v for k, v in body.items() if k in CAMPOS_EDITABLES}
+    if not update_data:
+        return JSONResponse(status_code=400, content={"error": "Sin campos válidos"})
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.patch(
+            f"{SUPABASE_URL}/rest/v1/facturas?id=eq.{factura_id}",
+            json=update_data,
+            headers={
+                "apikey":          SUPABASE_ANON_KEY,
+                "Authorization":   f"Bearer {SUPABASE_ANON_KEY}",
+                "Content-Type":    "application/json",
+                "Prefer":          "return=minimal",
+            },
+        )
+    if resp.is_success:
+        return {"ok": True}
+    return JSONResponse(status_code=resp.status_code, content={"error": resp.text})
+
+
 @app.get("/api/workflow/estado")
 async def workflow_estado():
     """Devuelve el último run del workflow."""
