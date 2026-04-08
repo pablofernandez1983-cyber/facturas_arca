@@ -117,9 +117,47 @@
          white-space: pre-wrap; word-break: break-all; margin-top: 12px; }
   .ls { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
   .ls.r { color: var(--warning); } .ls.ok { color: var(--success); } .ls.er { color: var(--danger); }
+
+  /* Pantalla de contraseña */
+  #loginScreen {
+    position: fixed; inset: 0; z-index: 999;
+    background: var(--bg); display: flex; align-items: center; justify-content: center;
+  }
+  #loginScreen.oculto { display: none; }
+  .login-card {
+    background: var(--card); border-radius: 20px; padding: 36px 28px;
+    width: 300px; box-shadow: 0 8px 30px rgba(0,0,0,.12); text-align: center;
+  }
+  .login-card h2 { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+  .login-card p  { font-size: 14px; color: var(--sub); margin-bottom: 24px; }
+  .login-card input {
+    width: 100%; padding: 14px; border: 2px solid var(--border); border-radius: var(--r);
+    font-size: 22px; text-align: center; letter-spacing: 8px; outline: none;
+    margin-bottom: 14px; transition: border-color .15s;
+  }
+  .login-card input:focus { border-color: var(--primary); }
+  .login-card input.error { border-color: var(--danger); }
+  .login-card button {
+    width: 100%; padding: 14px; border: none; border-radius: var(--r);
+    background: var(--primary); color: #fff; font-size: 16px; font-weight: 700; cursor: pointer;
+  }
+  .login-card button:active { opacity: .85; }
+  .login-error { font-size: 13px; color: var(--danger); font-weight: 600;
+                 margin-top: 10px; min-height: 18px; }
 </style>
 </head>
 <body>
+
+<div id="loginScreen">
+  <div class="login-card">
+    <h2>📋 Facturas ARCA</h2>
+    <p>Ingresá la contraseña para continuar</p>
+    <input type="password" id="pinInput" maxlength="10" placeholder="••••"
+           onkeydown="if(event.key==='Enter') verificarPin()">
+    <button onclick="verificarPin()">Ingresar</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
 
 <header>
   <h1>📋 Facturas ARCA</h1>
@@ -163,6 +201,33 @@
 </div>
 
 <script>
+// ─── Login ────────────────────────────────────────────────────────────────
+const PIN_CORRECTO = "4850";
+
+function verificarPin() {
+  const input = document.getElementById("pinInput");
+  const err   = document.getElementById("loginError");
+  if (input.value === PIN_CORRECTO) {
+    sessionStorage.setItem("auth", "ok");
+    document.getElementById("loginScreen").classList.add("oculto");
+    err.textContent = "";
+    input.classList.remove("error");
+    init();
+  } else {
+    input.classList.add("error");
+    err.textContent = "Contraseña incorrecta";
+    input.value = "";
+    input.focus();
+  }
+}
+
+if (sessionStorage.getItem("auth") === "ok") {
+  document.getElementById("loginScreen").classList.add("oculto");
+} else {
+  document.getElementById("pinInput").focus();
+}
+
+// ─── Supabase ─────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://zqwkznlgbkofsrygqezk.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpxd2t6bmxnYmtvZnNyeWdxZXprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1MTAzMTAsImV4cCI6MjA5MTA4NjMxMH0.GNt-G_RUcxLYCpSqAKKI4KxNU87bBEQAJVCr88R2wQE";
 
@@ -380,7 +445,7 @@ function esc(s) {
   return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
-init();
+if (sessionStorage.getItem("auth") === "ok") init();
 </script>
 </body>
 </html>
