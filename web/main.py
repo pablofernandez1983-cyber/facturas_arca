@@ -10,6 +10,8 @@ Env vars en Railway:
 """
 
 import os
+import calendar
+from datetime import date
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -132,6 +134,94 @@ async def workflow_estado():
         "started_at":  run["run_started_at"],
         "run_id":      run["id"],
     }
+
+
+@app.post("/api/copiar-mes")
+async def copiar_mes(request: Request):
+    """
+    Copia todas las facturas de mes_origen a mes_destino
+    actualizando fecha_cbte, desde, hasta, vto_pago al nuevo mes.
+    Body: { "mes_origen": "2026-04", "mes_destino": "2026-05" }  (ambos opcionales)
+    """
+    body = await request.json()
+
+    hoy = date.today()
+    mes_destino = body.get("mes_destino") or hoy.strftime("%Y-%m")
+    anio_d, mes_d = int(mes_destino.split("-")[0]), int(mes_destino.split("-")[1])
+
+    # mes_origen = mes anterior al destino
+    if body.get("mes_origen"):
+        mes_origen = body["mes_origen"]
+    else:
+        primer_dia_destino = date(anio_d, mes_d, 1)
+        if mes_d == 1:
+            mes_origen = f"{anio_d - 1}-12"
+        else:
+            mes_origen = f"{anio_d}-{mes_d - 1:02d}"
+
+    ultimo_dia = calendar.monthrange(anio_d, mes_d)[1]
+    primer_dia_str = f"{anio_d}-{mes_d:02d}-01"
+    ultimo_dia_str = f"{anio_d}-{mes_d:02d}-{ultimo_dia:02d}"
+
+    headers = {
+        "apikey":        SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+        "Content-Type":  "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        # Verificar que no existan ya facturas en mes_destino
+        chk = await client.get(
+            f"{SUPABASE_URL}/rest/v1/facturas"
+            f"?fecha_cbte=gte.{primer_dia_str}&fecha_cbte=lte.{ultimo_dia_str}&select=id&limit=1",
+            headers=headers,
+        )
+        if chk.is_success and chk.json():
+            return JSONResponse(status_code=400, content={
+                "error": f"Ya existen facturas en {mes_destino}. No se copió nada."
+            })
+
+        # Traer facturas del mes origen
+        anio_o, mes_o = int(mes_origen.split("-")[0]), int(mes_origen.split("-")[1])
+        ultimo_o = calendar.monthrange(anio_o, mes_o)[1]
+        resp = await client.get(
+            f"{SUPABASE_URL}/rest/v1/facturas"
+            f"?fecha_cbte=gte.{anio_o}-{mes_o:02d}-01"
+            f"&fecha_cbte=lte.{anio_o}-{mes_o:02d}-{ultimo_o:02d}"
+            f"&select=*",
+            headers=headers,
+        )
+        if not resp.is_success:
+            return JSONResponse(status_code=resp.status_code, content={"error": resp.text})
+
+        origen = resp.json()
+        if not origen:
+            return JSONResponse(status_code=404, content={
+                "error": f"No hay facturas en {mes_origen} para copiar."
+            })
+
+        # Construir nuevas filas
+        EXCLUIR = {"id", "emitida", "emitida_at", "idx_excel"}
+        nuevas = []
+        for f in origen:
+            nueva = {k: v for k, v in f.items() if k not in EXCLUIR}
+            nueva["fecha_cbte"] = primer_dia_str
+            nueva["desde"]      = primer_dia_str
+            nueva["hasta"]      = ultimo_dia_str
+            nueva["vto_pago"]   = ultimo_dia_str
+            nueva["emitida"]    = False
+            nueva["emitida_at"] = None
+            nuevas.append(nueva)
+
+        ins = await client.post(
+            f"{SUPABASE_URL}/rest/v1/facturas",
+            json=nuevas,
+            headers={**headers, "Prefer": "return=minimal"},
+        )
+        if not ins.is_success:
+            return JSONResponse(status_code=ins.status_code, content={"error": ins.text})
+
+    return {"ok": True, "copiadas": len(nuevas), "mes_origen": mes_origen, "mes_destino": mes_destino}
 
 
 if __name__ == "__main__":

@@ -165,6 +165,11 @@
   .login-card button:active { opacity: .85; }
   .login-error { font-size: 13px; color: var(--danger); font-weight: 600;
                  margin-top: 10px; min-height: 18px; }
+
+  .btn-copy { background: rgba(255,255,255,.18); border: 1.5px solid rgba(255,255,255,.4);
+              color: #fff; border-radius: 8px; padding: 6px 10px; font-size: 12px;
+              font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btn-copy:active { opacity: .75; }
 </style>
 </head>
 <body>
@@ -230,6 +235,7 @@
 
 <header>
   <h1>📋 Facturas ARCA</h1>
+  <button class="btn-copy" onclick="copiarMesAnterior()">+ Copiar mes anterior</button>
   <select id="selMes" onchange="cargar()"></select>
 </header>
 
@@ -314,6 +320,29 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let todas = [], sel = new Set(), polTimer = null;
 
 // ─── Init ──────────────────────────────────────────────────────────────────
+async function copiarMesAnterior() {
+  const mes = document.getElementById("selMes").value;
+  const [anio, m] = mes.split("-").map(Number);
+  const mesOrigen = m === 1 ? `${anio-1}-12` : `${anio}-${String(m-1).padStart(2,"0")}`;
+  const mesNombre = new Date(anio, m-1, 1).toLocaleString("es-AR", {month:"long", year:"numeric"});
+  const origenNombre = new Date(anio, m-2 < 0 ? 11 : m-2, 1).toLocaleString("es-AR", {month:"long", year:"numeric"});
+
+  if (!confirm(`¿Copiar todas las facturas de ${origenNombre} a ${mesNombre}?\n\nSe van a crear como pendientes con fechas del nuevo mes.`)) return;
+
+  const resp = await fetch("/api/copiar-mes", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ mes_origen: mesOrigen, mes_destino: mes }),
+  }).then(r=>r.json()).catch(e=>({error: e.message}));
+
+  if (resp.error) {
+    alert("Error: " + resp.error);
+  } else {
+    alert(`✅ ${resp.copiadas} factura${resp.copiadas!==1?"s":""} copiada${resp.copiadas!==1?"s":""} a ${mesNombre}`);
+    cargar();
+  }
+}
+
 async function init() {
   // Obtener meses distintos desde Supabase
   const { data } = await sb.from("facturas").select("fecha_cbte").order("fecha_cbte", { ascending: false });
