@@ -12,6 +12,9 @@ Env vars en Railway:
 import os
 import calendar
 from datetime import date
+
+NOMBRES_MES_ES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
+                  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -207,6 +210,7 @@ async def copiar_mes(request: Request):
             nueva["vto_pago"]   = ultimo_dia_str
             nueva["emitida"]    = False
             nueva["emitida_at"] = None
+            nueva["detalle"]    = f"Alquiler {NOMBRES_MES_ES[mes_d - 1]} {anio_d}"
             nuevas.append(nueva)
 
         ins = await client.post(
