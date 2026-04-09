@@ -170,16 +170,12 @@ async def copiar_mes(request: Request):
     }
 
     async with httpx.AsyncClient(timeout=15) as client:
-        # Verificar que no existan ya facturas en mes_destino
-        chk = await client.get(
+        # Borrar facturas NO emitidas del mes destino (las emitidas no se tocan)
+        await client.delete(
             f"{SUPABASE_URL}/rest/v1/facturas"
-            f"?fecha_cbte=gte.{primer_dia_str}&fecha_cbte=lte.{ultimo_dia_str}&select=id&limit=1",
+            f"?fecha_cbte=gte.{primer_dia_str}&fecha_cbte=lte.{ultimo_dia_str}&emitida=eq.false",
             headers=headers,
         )
-        if chk.is_success and chk.json():
-            return JSONResponse(status_code=400, content={
-                "error": f"Ya existen facturas en {mes_destino}. No se copió nada."
-            })
 
         # Traer facturas del mes origen
         anio_o, mes_o = int(mes_origen.split("-")[0]), int(mes_origen.split("-")[1])

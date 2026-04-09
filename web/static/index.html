@@ -330,7 +330,7 @@ async function copiarMesAnterior() {
   const mesNombre = new Date(anio, m-1, 1).toLocaleString("es-AR", {month:"long", year:"numeric"});
   const origenNombre = new Date(anio, m-2 < 0 ? 11 : m-2, 1).toLocaleString("es-AR", {month:"long", year:"numeric"});
 
-  if (!confirm(`¿Copiar todas las facturas de ${origenNombre} a ${mesNombre}?\n\nSe van a crear como pendientes con fechas del nuevo mes.`)) return;
+  if (!confirm(`¿Copiar facturas de ${origenNombre} a ${mesNombre}?\n\nLas facturas pendientes de ${mesNombre} se van a reemplazar con las de ${origenNombre}.\nLas ya emitidas no se tocan.`)) return;
 
   const resp = await fetch("/api/copiar-mes", {
     method: "POST",
