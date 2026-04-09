@@ -21,10 +21,11 @@ from playwright.sync_api import Playwright, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 # ========= Config =========
-TIPO      = "MAMA"
+TIPO         = "MAMA"
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 FAST_HUMAN   = True
+PDF_DIR      = "/tmp/pdfs"
 
 # ========= Args =========
 parser = argparse.ArgumentParser()
@@ -92,6 +93,56 @@ def wait_comprobante_generado(page, timeout=180000):
         "return el && getComputedStyle(el).display !== 'none'; }",
         timeout=timeout)
 
+def click_imprimir_y_guardar(page2, context, out_path: str) -> bool:
+    btn = page2.locator("input[type='button'][value*='Imprimir']").first
+    if btn.count() == 0:
+        print("⚠️ No encontré el botón Imprimir...")
+        return False
+    try:
+        with page2.expect_download(timeout=8000) as d:
+            btn.scroll_into_view_if_needed()
+            btn.click()
+        d.value.save_as(out_path)
+        print(f"📄 PDF guardado (download): {out_path}")
+        return True
+    except Exception:
+        pass
+    try:
+        with page2.expect_popup(timeout=8000) as p:
+            btn.scroll_into_view_if_needed()
+            btn.click()
+        pdf_page = p.value
+        pdf_page.wait_for_load_state("domcontentloaded")
+        url = pdf_page.url
+        for _ in range(20):
+            if url and url != "about:blank":
+                break
+            pdf_page.wait_for_timeout(250)
+            url = pdf_page.url
+        if not url or url == "about:blank":
+            print("⚠️ Popup abierto pero sin URL de PDF.")
+            try: pdf_page.close()
+            except: pass
+            return False
+        resp = context.request.get(url)
+        if not resp.ok:
+            print(f"⚠️ No pude bajar el PDF. HTTP {resp.status}")
+            try: pdf_page.close()
+            except: pass
+            return False
+        with open(out_path, "wb") as f:
+            f.write(resp.body())
+        print(f"📄 PDF guardado (popup): {out_path}")
+        try: pdf_page.close()
+        except: pass
+        return True
+    except PlaywrightTimeoutError:
+        print("⚠️ Imprimir no generó download ni popup.")
+        return False
+    except Exception as e:
+        print(f"⚠️ Error al manejar Imprimir: {e}")
+        return False
+
 def confirmar_y_emitir(page):
     """
     1. Click en #btngenerar  ("Confirmar Datos...")
@@ -143,6 +194,8 @@ def run(playwright: Playwright) -> None:
         return
     print(f"📋 {len(facturas)} facturas {TIPO} a emitir.")
 
+    os.makedirs(PDF_DIR, exist_ok=True)
+
     browser = playwright.chromium.launch(
         headless=True,
         args=["--disable-blink-features=AutomationControlled", "--no-sandbox"],
@@ -151,6 +204,7 @@ def run(playwright: Playwright) -> None:
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         viewport={"width": 1280, "height": 720},
+        accept_downloads=True,
     )
     page = context.new_page()
 
@@ -279,6 +333,11 @@ def run(playwright: Playwright) -> None:
         print(f"✅ ID {fid}: comprobante generado")
 
         marcar_emitida(sb, fid)
+
+        # Descargar PDF
+        safe_name = re.sub(r"[^a-zA-Z0-9_-]+", "_", contribuyente_btn)[:40]
+        pdf_path = os.path.join(PDF_DIR, f"{safe_name}_id{fid}.pdf")
+        click_imprimir_y_guardar(page2, context, pdf_path)
 
         try: page2.close()
         except: pass
