@@ -454,6 +454,8 @@ async function confirmar() {
   const n = sel.size;
   if (!confirm(`¿Emitir ${n} factura${n>1?"s":""} en ARCA?\n\nEsta acción no se puede deshacer.`)) return;
   const ids = [...sel].map(Number);
+  const tipos = new Set([...sel].map(k => todas.find(f => String(f.id)===k)?.tipo).filter(Boolean));
+  const tipo = tipos.size === 1 ? [...tipos][0] : "AMBOS";
   document.getElementById("mfoot").innerHTML = "";
   document.getElementById("mbody").innerHTML += `
     <div class="ls r" id="ls">⏳ Enviando a GitHub Actions...</div>
@@ -462,7 +464,7 @@ async function confirmar() {
   const resp = await fetch("/api/emitir", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ ids, tipo: "AMBOS" }),
+    body: JSON.stringify({ ids, tipo }),
   }).then(r=>r.json()).catch(e => ({error: e.message}));
 
   if (resp.error) {

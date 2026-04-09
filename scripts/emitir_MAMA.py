@@ -63,7 +63,7 @@ def fmt_fecha(date_str: str) -> str:
 
 def obtener_facturas(sb) -> list[dict]:
     if IDS_FORZADOS:
-        resp = sb.table("facturas").select("*").in_("id", IDS_FORZADOS).execute()
+        resp = sb.table("facturas").select("*").in_("id", IDS_FORZADOS).eq("tipo", TIPO).execute()
     else:
         mes = datetime.now().strftime("%Y-%m")
         # Filtrar por mes actual y no emitidas
