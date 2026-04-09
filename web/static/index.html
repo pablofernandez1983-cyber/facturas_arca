@@ -22,6 +22,8 @@
   header select { border: none; border-radius: 8px; padding: 6px 10px; font-size: 14px;
                   background: rgba(255,255,255,.2); color: #fff; cursor: pointer; outline: none; }
   header select option { background: #1e3a8a; }
+  #selAnio { width: 80px; }
+  #selMesN { width: 110px; }
 
   .chips { margin: 14px 16px 0; display: flex; gap: 10px; }
   .chip  { flex: 1; border-radius: 10px; padding: 10px 14px; font-size: 13px;
@@ -236,7 +238,8 @@
 <header>
   <h1>📋 Facturas ARCA</h1>
   <button class="btn-copy" onclick="copiarMesAnterior()">+ Copiar mes anterior</button>
-  <select id="selMes" onchange="cargar()"></select>
+  <select id="selAnio" onchange="actualizarMeses()"></select>
+  <select id="selMesN" onchange="cargar()"></select>
 </header>
 
 <div class="scroll">
@@ -321,7 +324,7 @@ let todas = [], sel = new Set(), polTimer = null;
 
 // ─── Init ──────────────────────────────────────────────────────────────────
 async function copiarMesAnterior() {
-  const mes = document.getElementById("selMes").value;
+  const mes = getMesSeleccionado();
   const [anio, m] = mes.split("-").map(Number);
   const mesOrigen = m === 1 ? `${anio-1}-12` : `${anio}-${String(m-1).padStart(2,"0")}`;
   const mesNombre = new Date(anio, m-1, 1).toLocaleString("es-AR", {month:"long", year:"numeric"});
@@ -343,34 +346,71 @@ async function copiarMesAnterior() {
   }
 }
 
-async function init() {
-  // Obtener meses distintos desde Supabase
-  const { data } = await sb.from("facturas").select("fecha_cbte").order("fecha_cbte", { ascending: false });
-  const meses = [...new Set((data || []).map(r => (r.fecha_cbte || "").slice(0, 7)).filter(Boolean))];
+let _mesesDisponibles = [];  // ["2026-04", "2026-05", ...]
 
-  const selEl = document.getElementById("selMes");
+const NOMBRES_MES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
+                     "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+function getMesSeleccionado() {
+  const anio = document.getElementById("selAnio").value;
+  const mes  = document.getElementById("selMesN").value;
+  return `${anio}-${mes}`;
+}
+
+async function init() {
+  const { data } = await sb.from("facturas").select("fecha_cbte").order("fecha_cbte", { ascending: true });
+  _mesesDisponibles = [...new Set((data || []).map(r => (r.fecha_cbte || "").slice(0, 7)).filter(Boolean))];
+
   const ahora = new Date().toISOString().slice(0, 7);
-  (meses.length ? meses : [ahora]).forEach(m => {
+  if (!_mesesDisponibles.length) _mesesDisponibles = [ahora];
+
+  // Poblar años (orden ascendente)
+  const anios = [...new Set(_mesesDisponibles.map(m => m.slice(0, 4)))];
+  const selAnio = document.getElementById("selAnio");
+  anios.forEach(a => {
     const o = document.createElement("option");
-    o.value = m; o.text = fmtMes(m);
-    if (m === ahora) o.selected = true;
-    selEl.appendChild(o);
+    o.value = a; o.text = a;
+    if (ahora.startsWith(a)) o.selected = true;
+    selAnio.appendChild(o);
   });
-  cargar();
+
+  actualizarMeses(ahora.slice(5, 7));
   verificarWorkflow();
+}
+
+function actualizarMeses(mesPreferido) {
+  const anio = document.getElementById("selAnio").value;
+  const selMesN = document.getElementById("selMesN");
+  selMesN.innerHTML = "";
+
+  const mesesDeAnio = _mesesDisponibles
+    .filter(m => m.startsWith(anio))
+    .map(m => m.slice(5, 7))
+    .sort();  // ascendente
+
+  const ahora = new Date().toISOString().slice(0, 7);
+  const mesPref = mesPreferido || ahora.slice(5, 7);
+
+  mesesDeAnio.forEach(m => {
+    const o = document.createElement("option");
+    o.value = m;
+    o.text = NOMBRES_MES[parseInt(m) - 1];
+    if (m === mesPref) o.selected = true;
+    selMesN.appendChild(o);
+  });
+
+  cargar();
 }
 
 function fmtMes(ym) {
   const [y, m] = ym.split("-");
-  const n = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
-             "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-  return `${n[parseInt(m)-1]} ${y}`;
+  return `${NOMBRES_MES[parseInt(m)-1]} ${y}`;
 }
 
 // ─── Cargar facturas ──────────────────────────────────────────────────────
 async function cargar() {
   sel.clear();
-  const mes = document.getElementById("selMes").value;
+  const mes = getMesSeleccionado();
   document.getElementById("contenido").innerHTML = '<div class="vacio">Cargando...</div>';
 
   const [y, m] = mes.split("-");
