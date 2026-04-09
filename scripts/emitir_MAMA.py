@@ -335,8 +335,11 @@ def run(playwright: Playwright) -> None:
         marcar_emitida(sb, fid)
 
         # Descargar PDF
-        safe_name = re.sub(r"[^a-zA-Z0-9_-]+", "_", contribuyente_btn)[:40]
-        pdf_path = os.path.join(PDF_DIR, f"{safe_name}_id{fid}.pdf")
+        raw_fecha   = f.get("fecha_cbte") or ""
+        periodo     = datetime.strptime(raw_fecha, "%Y-%m-%d").strftime("%m-%Y") if raw_fecha else "00-0000"
+        cuit_emisor = re.sub(r"[^0-9]", "", CUIT)
+        cuit_recep  = re.sub(r"[^0-9]", "", doc_receptor)
+        pdf_path    = os.path.join(PDF_DIR, f"Factura-{cuit_emisor}-{cuit_recep}-{periodo}.pdf")
         click_imprimir_y_guardar(page2, context, pdf_path)
 
         try: page2.close()
