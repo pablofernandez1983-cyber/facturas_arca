@@ -371,13 +371,18 @@ function render() {
     actuBtn(); return;
   }
 
+  const NOMBRE_TIPO = {
+    MAMA: "WAINSTEIN, ANA",
+    PAPA: "SUCESION DE JOSE FERNANDEZ",
+  };
+
   const grupos = {};
   todas.forEach(f => { if (!grupos[f.tipo]) grupos[f.tipo]=[]; grupos[f.tipo].push(f); });
 
   let h = "";
   for (const tipo of ["MAMA","PAPA"]) {
     if (!grupos[tipo]) continue;
-    h += `<div class="seccion"><div class="sec-tit">${tipo}</div>`;
+    h += `<div class="seccion"><div class="sec-tit">${NOMBRE_TIPO[tipo] || tipo}</div>`;
     grupos[tipo].forEach(f => {
       const k = String(f.id);
       const s = sel.has(k);
