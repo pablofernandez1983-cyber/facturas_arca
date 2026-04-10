@@ -15,21 +15,22 @@
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
          background: var(--bg); color: var(--text); font-size: 15px; }
 
-  header { background: var(--primary); color: #fff; padding: 16px 20px 14px;
+  header { background: var(--primary); color: #fff; padding: 10px 14px;
            position: sticky; top: 0; z-index: 10;
-           display: flex; align-items: center; gap: 12px; }
-  header h1 { font-size: 18px; font-weight: 700; flex: 1; }
-  header select { border: none; border-radius: 8px; padding: 6px 10px; font-size: 14px;
+           display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  header h1 { font-size: 17px; font-weight: 700; flex: 1; }
+  header select { border: none; border-radius: 8px; padding: 6px 8px; font-size: 13px;
                   background: rgba(255,255,255,.2); color: #fff; cursor: pointer; outline: none; }
   header select option { background: #1e3a8a; }
-  #selAnio { width: 80px; }
-  #selMesN { width: 110px; }
+  #selAnio { width: 72px; }
+  #selMesN { width: 106px; }
 
   .chips { margin: 14px 16px 0; display: flex; gap: 10px; }
   .chip  { flex: 1; border-radius: 10px; padding: 10px 14px; font-size: 13px;
            font-weight: 600; text-align: center; display: flex; flex-direction: column; gap: 2px; }
   .chip span { font-size: 22px; font-weight: 800; }
-  .chip.p { background: #fff7ed; color: var(--warning); }
+  .chip.p { background: #fff7ed; color: var(--warning); cursor: pointer; }
+  .chip.p:active { opacity: .8; }
   .chip.e { background: #f0fdf4; color: var(--success); }
   .chip.t { background: #eff6ff; color: var(--primary); }
 
@@ -175,8 +176,9 @@
                  margin-top: 10px; min-height: 18px; }
 
   .btn-copy { background: rgba(255,255,255,.18); border: 1.5px solid rgba(255,255,255,.4);
-              color: #fff; border-radius: 8px; padding: 6px 10px; font-size: 12px;
-              font-weight: 600; cursor: pointer; white-space: nowrap; }
+              color: #fff; border-radius: 8px; padding: 8px 8px; font-size: 11px;
+              font-weight: 600; cursor: pointer; white-space: normal;
+              line-height: 1.3; text-align: center; max-width: 72px; }
   .btn-copy:active { opacity: .75; }
 </style>
 </head>
@@ -242,8 +244,8 @@
 </div>
 
 <header>
-  <img src="https://www.arca.gob.ar/assets/img/logo-arca-blanco.svg" alt="ARCA"
-       style="height:28px;flex-shrink:0" onerror="this.replaceWith(document.createTextNode('📋'))">
+  <img src="/static/logo.jpg" alt="ARCA"
+       style="height:32px;border-radius:6px;flex-shrink:0">
   <h1>Facturas</h1>
   <button class="btn-copy" onclick="copiarMesAnterior()">+ Copiar mes anterior</button>
   <select id="selAnio" onchange="actualizarMeses()"></select>
@@ -252,7 +254,7 @@
 
 <div class="scroll">
   <div class="chips">
-    <div class="chip p"><span id="cp">—</span>Pendientes</div>
+    <div class="chip p" onclick="selAllPendientes()" title="Seleccionar todas las pendientes"><span id="cp">—</span>Pendientes</div>
     <div class="chip e"><span id="ce">—</span>Emitidas</div>
     <div class="chip t"><span id="ct">—</span>Total</div>
   </div>
@@ -495,6 +497,16 @@ function render() {
 function toggle(k) {
   sel.has(k) ? sel.delete(k) : sel.add(k);
   document.getElementById("c"+k)?.classList.toggle("sel");
+  actuBtn();
+}
+
+function selAllPendientes() {
+  const ids = todas.filter(f => !f.emitida).map(f => String(f.id));
+  const todosSeleccionados = ids.every(k => sel.has(k));
+  ids.forEach(k => {
+    if (todosSeleccionados) { sel.delete(k); document.getElementById("c"+k)?.classList.remove("sel"); }
+    else                    { sel.add(k);    document.getElementById("c"+k)?.classList.add("sel"); }
+  });
   actuBtn();
 }
 
