@@ -354,10 +354,8 @@ input[type=file]{display:none}
         </div>
 
         <div class="sig-panel" id="tab-info">
-          <textarea class="text-block-input" id="infoTextInput" oninput="updateInfoPreview()">ANA WAINSTEIN
-DNI 6.045.299</textarea>
-          <div class="text-block-preview" id="infoTextPreview" style="margin-top:10px">ANA WAINSTEIN
-DNI 6.045.299</div>
+          <textarea class="text-block-input" id="infoTextInput" oninput="updateInfoPreview()"></textarea>
+          <div class="text-block-preview" id="infoTextPreview" style="margin-top:10px"></div>
           <div class="color-row" style="margin-top:10px">
             <span class="color-label">Color:</span>
             <div class="color-dot active" style="background:#1a1410" onclick="setInfoTextColor(this,'#1a1410')"></div>
@@ -578,7 +576,17 @@ function applyLayout(){
     document.getElementById('mobileNav').style.display='none';
   }
 }
-window.addEventListener('load',()=>{applyLayout();renderSavedGrid();setTimeout(initSigCanvas,150);setTimeout(updateInfoPreview,120)});
+window.addEventListener('load',()=>{
+  applyLayout();renderSavedGrid();setTimeout(initSigCanvas,150);
+  // Restaurar texto e info guardados
+  try{
+    const lastText=localStorage.getItem('firmadoc_infotext_last');
+    const lastSize=localStorage.getItem('firmadoc_infosize_last');
+    if(lastText!=null){document.getElementById('infoTextInput').value=lastText;}
+    if(lastSize!=null){const s=document.getElementById('infoTextSize');s.value=lastSize;}
+  }catch(e){}
+  setTimeout(updateInfoPreview,120);
+});
 window.addEventListener('resize',applyLayout);
 
 // ── FILE UPLOAD ────────────────────────────────────────────
@@ -893,6 +901,7 @@ function updateInfoPreview(){
   const val=document.getElementById('infoTextInput').value.trim();
   const size=document.getElementById('infoTextSize').value;
   document.getElementById('infoTextSizeVal').textContent=size;
+  try{localStorage.setItem('firmadoc_infotext_last',document.getElementById('infoTextInput').value);localStorage.setItem('firmadoc_infosize_last',size);}catch(e){}
   const prev=document.getElementById('infoTextPreview');
   prev.style.color=sigTypColor;
   prev.style.fontSize=size+'px';
@@ -1231,53 +1240,64 @@ function handleTouchStart(e){
   e.preventDefault();
 
   const el=e.currentTarget;
+  if(el.classList.contains('confirmed'))return;
   document.querySelectorAll('.sig-overlay').forEach(o=>o.classList.remove('selected'));
   el.classList.add('selected');
 
-  if(e.touches.length===1){
-    // ── 1 finger: drag ──
-    const touch=e.touches[0];
-    const r=el.getBoundingClientRect();
-    let oX=touch.clientX-r.left,oY=touch.clientY-r.top;
+  const img=el.querySelector('img');
+  let pinching=false;
+  let pinchStartDist=0,pinchStartH=0;
+  let dragging=true;
+  const touch0=e.touches[0];
+  const r=el.getBoundingClientRect();
+  let oX=touch0.clientX-r.left,oY=touch0.clientY-r.top;
 
-    function mv(e){
-      if(e.touches.length!==1)return;
-      e.preventDefault();
+  // Si ya arrancan 2 dedos juntos, activar pinch de entrada
+  if(e.touches.length===2 && img){
+    pinching=true;dragging=false;
+    const a=e.touches[0],b=e.touches[1];
+    pinchStartDist=Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY);
+    pinchStartH=img.offsetHeight;
+  }
+
+  function mv(e){
+    e.preventDefault();
+    if(!pinching && e.touches.length===2 && img){
+      // Entró el 2° dedo durante el drag → cambiar a pinch
+      pinching=true;dragging=false;
+      const a=e.touches[0],b=e.touches[1];
+      pinchStartDist=Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY);
+      pinchStartH=img.offsetHeight;
+    }
+    if(pinching && e.touches.length===2 && img){
+      const a=e.touches[0],b=e.touches[1];
+      const dist=Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY);
+      const newH=Math.max(20,Math.min(400,pinchStartH*(dist/pinchStartDist)));
+      img.style.height=newH+'px';img.style.width='auto';
+    } else if(dragging && e.touches.length===1){
       const t=e.touches[0];
       const pR=el.parentElement.getBoundingClientRect();
       el.style.left=(t.clientX-pR.left-oX)+'px';
       el.style.top=(t.clientY-pR.top-oY)+'px';
     }
-    function end(){
-      document.removeEventListener('touchmove',mv);
-      document.removeEventListener('touchend',end);
-      reparentOverlay(el);
-    }
-    document.addEventListener('touchmove',mv,{passive:false});
-    document.addEventListener('touchend',end);
-
-  } else if(e.touches.length===2){
-    // ── 2 fingers: pinch to scale ──
-    const img=el.querySelector('img');if(!img)return;
-    const startH=img.offsetHeight;
-    const t1=e.touches[0],t2=e.touches[1];
-    const startDist=Math.hypot(t2.clientX-t1.clientX,t2.clientY-t1.clientY);
-
-    function mv(e){
-      if(e.touches.length!==2)return;
-      e.preventDefault();
-      const a=e.touches[0],b=e.touches[1];
-      const dist=Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY);
-      const newH=Math.max(20,Math.min(400,startH*(dist/startDist)));
-      img.style.height=newH+'px';img.style.width='auto';
-    }
-    function end(){
-      document.removeEventListener('touchmove',mv);
-      document.removeEventListener('touchend',end);
-    }
-    document.addEventListener('touchmove',mv,{passive:false});
-    document.addEventListener('touchend',end);
   }
+
+  function end(e){
+    if(e.touches.length===0){
+      document.removeEventListener('touchmove',mv);
+      document.removeEventListener('touchend',end);
+      if(!pinching) reparentOverlay(el);
+    } else if(pinching && e.touches.length===1){
+      // Levantó 1 dedo → volver a drag
+      pinching=false;dragging=true;
+      const t=e.touches[0];
+      const cur=el.getBoundingClientRect();
+      oX=t.clientX-cur.left;oY=t.clientY-cur.top;
+    }
+  }
+
+  document.addEventListener('touchmove',mv,{passive:false});
+  document.addEventListener('touchend',end);
 }
 
 // ── EXPORT PDF ─────────────────────────────────────────────
