@@ -364,6 +364,15 @@ input[type=file]{display:none}
             <div class="color-dot" style="background:#2d5a27" onclick="setInfoTextColor(this,'#2d5a27')"></div>
           </div>
           <div class="slider-row"><label>Tamaño:</label><input type="range" id="infoTextSize" min="14" max="30" value="18" oninput="updateInfoPreview()"><span class="slider-val" id="infoTextSizeVal">18</span></div>
+          <div class="slider-row" style="gap:6px;flex-wrap:wrap">
+            <label>Fuente:</label>
+            <select id="infoTextFont" onchange="updateInfoPreview()" style="flex:1;min-width:0;padding:4px 6px;border:1px solid rgba(26,20,16,.2);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:var(--font-xs);background:#fff;color:var(--ink)">
+              <option value="DM Sans">Sans (DM Sans)</option>
+              <option value="Playfair Display">Serif (Playfair)</option>
+              <option value="Dancing Script">Cursiva</option>
+            </select>
+            <button id="infoBoldBtn" onclick="toggleInfoBold()" style="padding:4px 10px;border:1px solid rgba(26,20,16,.2);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:var(--font-xs);background:#fff;color:var(--ink);cursor:pointer;font-weight:600">B</button>
+          </div>
           <div class="save-sig-row">
             <label>Guardar:</label>
             <select class="save-sig-select" id="infoSaveSlot"><option value="">— no guardar —</option><option value="0">Texto firma 1</option><option value="1">Texto firma 2</option></select>
@@ -430,6 +439,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/p
 // ── STATE ──────────────────────────────────────────────────
 let pdfDoc=null,totalPages=0,docType=null;
 let sigColor='#1a1410',sigTypColor='#1a1410',sigThickness=2.5;
+let infoTextBold=false;
 let isDrawing=false,lastX=0,lastY=0;
 let sigImageOriginal=null,currentSigDataUrl=null;
 let docLoaded=false,renderedPageImages=[],currentFileName='';
@@ -584,6 +594,10 @@ window.addEventListener('load',()=>{
     const lastSize=localStorage.getItem('firmadoc_infosize_last');
     if(lastText!=null){document.getElementById('infoTextInput').value=lastText;}
     if(lastSize!=null){const s=document.getElementById('infoTextSize');s.value=lastSize;}
+    const lastFont=localStorage.getItem('firmadoc_infofont_last');
+    const lastBold=localStorage.getItem('firmadoc_infobold_last');
+    if(lastFont!=null){const f=document.getElementById('infoTextFont');if(f)f.value=lastFont;}
+    if(lastBold==='1'){infoTextBold=true;const btn=document.getElementById('infoBoldBtn');if(btn){btn.style.background='var(--ink)';btn.style.color='var(--gold)';}}
   }catch(e){}
   setTimeout(updateInfoPreview,120);
 });
@@ -897,15 +911,25 @@ function applyTypeSig(){
 }
 
 // ── IMAGE BG REMOVAL ───────────────────────────────────────
+function getInfoFont(){return(document.getElementById('infoTextFont')||{value:'DM Sans'}).value;}
 function updateInfoPreview(){
   const val=document.getElementById('infoTextInput').value.trim();
   const size=document.getElementById('infoTextSize').value;
   document.getElementById('infoTextSizeVal').textContent=size;
-  try{localStorage.setItem('firmadoc_infotext_last',document.getElementById('infoTextInput').value);localStorage.setItem('firmadoc_infosize_last',size);}catch(e){}
+  try{localStorage.setItem('firmadoc_infotext_last',document.getElementById('infoTextInput').value);localStorage.setItem('firmadoc_infosize_last',size);localStorage.setItem('firmadoc_infofont_last',getInfoFont());localStorage.setItem('firmadoc_infobold_last',infoTextBold?'1':'0');}catch(e){}
   const prev=document.getElementById('infoTextPreview');
   prev.style.color=sigTypColor;
   prev.style.fontSize=size+'px';
-  prev.textContent=val||'ANA WAINSTEIN\nDNI 6.045.299';
+  prev.style.fontFamily=`'${getInfoFont()}', sans-serif`;
+  prev.style.fontWeight=infoTextBold?'700':'300';
+  prev.textContent=val||'';
+}
+function toggleInfoBold(){
+  infoTextBold=!infoTextBold;
+  const btn=document.getElementById('infoBoldBtn');
+  btn.style.background=infoTextBold?'var(--ink)':'#fff';
+  btn.style.color=infoTextBold?'var(--gold)':'var(--ink)';
+  updateInfoPreview();
 }
 function setInfoTextColor(el,color){
   sigTypColor=color;
@@ -915,16 +939,19 @@ function setInfoTextColor(el,color){
 }
 function renderInfoTextUrl(val){
   const size=parseInt(document.getElementById('infoTextSize').value,10)||18;
+  const font=getInfoFont();
+  const weight=infoTextBold?'700':'300';
+  const fontStr=`${weight} ${size}px '${font}', sans-serif`;
   const lines=(val||'').split(/\r?\n/).filter(Boolean);
   const canvas=document.createElement('canvas');
   const ctx=canvas.getContext('2d');
-  ctx.font=`600 ${size}px 'DM Sans', sans-serif`;
+  ctx.font=fontStr;
   const maxWidth=Math.max(...lines.map(line=>ctx.measureText(line).width),160);
   const lineHeight=Math.round(size*1.45);
   canvas.width=Math.ceil(maxWidth+40);
   canvas.height=Math.ceil(lines.length*lineHeight+20);
   const draw=canvas.getContext('2d');
-  draw.font=`600 ${size}px 'DM Sans', sans-serif`;
+  draw.font=fontStr;
   draw.fillStyle=sigTypColor;
   draw.textBaseline='top';
   draw.textAlign='center';
