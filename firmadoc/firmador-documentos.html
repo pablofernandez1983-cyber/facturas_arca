@@ -6,7 +6,6 @@
 <title>FirmaDoc — Firma Digital</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.1.22/dist/docx-preview.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -802,63 +801,46 @@ async function loadWordStable(file){
   const scale=renderScale;
   const pageW=getWordPageWidth();
   const previewDiv=document.createElement('div');
-  previewDiv.style.cssText=`position:fixed;left:-9999px;top:0;width:${pageW}px;max-width:${pageW}px;background:#fff;font-family:Georgia,serif;font-size:13px;line-height:1.6;overflow:visible;`;
+  previewDiv.style.cssText=`position:fixed;left:-9999px;top:0;width:${pageW}px;max-width:${pageW}px;background:#fff;overflow:visible;`;
   document.body.appendChild(previewDiv);
 
   try{
     const arrayBuffer=await file.arrayBuffer();
-    let rendered=false;
-    const preferMammoth=true;
+    if(!window.JSZip||!window.docx?.renderAsync)throw new Error('docx-preview no disponible');
 
-    if(!preferMammoth&&window.JSZip&&window.docx?.renderAsync){
-      try{
-        await window.docx.renderAsync(arrayBuffer, previewDiv, null, {
-          className:'docx-preview-content',
-          inWrapper:true,
-          ignoreWidth:false,
-          ignoreHeight:false,
-          ignoreFonts:false,
-          breakPages:true,
-          useBase64URL:true,
-          renderChanges:false,
-          renderHeaders:true,
-          renderFooters:true,
-          renderFootnotes:false,
-        });
-        await new Promise(r=>setTimeout(r,150));
+    await window.docx.renderAsync(arrayBuffer, previewDiv, null, {
+      className:'docx-preview-content',
+      inWrapper:true,
+      ignoreWidth:false,
+      ignoreHeight:false,
+      ignoreFonts:false,
+      breakPages:true,
+      useBase64URL:true,
+      renderChanges:false,
+      renderHeaders:true,
+      renderFooters:true,
+      renderFootnotes:false,
+    });
 
-        const pageCandidates=Array.from(previewDiv.querySelectorAll('.docx-wrapper > section, .docx-wrapper .docx, section.docx, .docx'));
-        let pageNodes=pageCandidates.filter(el=>el.getBoundingClientRect().height>20&&el.getBoundingClientRect().width>20);
-        const wrapperRoot=previewDiv.querySelector('.docx-wrapper')||previewDiv.firstElementChild||previewDiv;
-        if(!pageNodes.length&&wrapperRoot&&wrapperRoot.getBoundingClientRect().height>20)pageNodes=[wrapperRoot];
+    // Esperar que carguen imágenes y fuentes
+    await new Promise(r=>setTimeout(r,600));
 
-        for(let i=0;i<pageNodes.length;i++){
-          showLoading(`Renderizando Word ${i+1}/${pageNodes.length}...`);
-          const result=await captureWordNode(pageNodes[i],scale,pageW);
-          if(result.capturedCanvas.width>20&&result.capturedCanvas.height>20){
-            appendWordCanvas(c,result.capturedCanvas,result.pageCssWidth,i);
-          }
-        }
-        rendered=renderedPageImages.length>0;
-      }catch(e){
-        console.warn('docx-preview fallo; se usa fallback mammoth',e);
-        c.innerHTML='';renderedPageImages=[];
+    const pageCandidates=Array.from(previewDiv.querySelectorAll('.docx-wrapper > section, .docx-wrapper .docx, section.docx, .docx'));
+    let pageNodes=pageCandidates.filter(el=>el.getBoundingClientRect().height>20&&el.getBoundingClientRect().width>20);
+    const wrapperRoot=previewDiv.querySelector('.docx-wrapper')||previewDiv.firstElementChild||previewDiv;
+    if(!pageNodes.length&&wrapperRoot&&wrapperRoot.getBoundingClientRect().height>20)pageNodes=[wrapperRoot];
+
+    for(let i=0;i<pageNodes.length;i++){
+      showLoading(`Renderizando página ${i+1}/${pageNodes.length}...`);
+      const result=await captureWordNode(pageNodes[i],scale,pageW);
+      if(result.capturedCanvas.width>20&&result.capturedCanvas.height>20){
+        appendWordCanvas(c,result.capturedCanvas,result.pageCssWidth,i);
       }
     }
 
-    if(!rendered){
-      if(!window.mammoth?.convertToHtml)throw new Error('No se pudo renderizar el Word');
-      const mammothResult=await window.mammoth.convertToHtml({arrayBuffer});
-      previewDiv.innerHTML=`<div id="wordPreview" style="width:${pageW}px;max-width:${pageW}px;background:#fff;padding:32px;overflow:hidden">${mammothResult.value||''}</div>`;
-      await new Promise(r=>setTimeout(r,30));
-      const fallbackNode=previewDiv.querySelector('#wordPreview');
-      const fallbackCapture=await captureWordNode(fallbackNode,scale,pageW);
-      const pagedCanvases=splitCanvasIntoPages(fallbackCapture.capturedCanvas,fallbackCapture.pageCssWidth);
-      pagedCanvases.forEach((page,index)=>appendWordCanvas(c,page.canvas,page.pageCssWidth,index));
-    }
-
-    totalPages=Math.max(1,renderedPageImages.length);
-    document.getElementById('pageInfo').textContent=`${totalPages} pag.`;
+    if(!renderedPageImages.length)throw new Error('No se pudo capturar el documento');
+    totalPages=renderedPageImages.length;
+    document.getElementById('pageInfo').textContent=`${totalPages} pág.`;
   } finally {
     document.body.removeChild(previewDiv);
   }
