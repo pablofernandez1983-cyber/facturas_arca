@@ -1,20 +1,21 @@
 {
-  "name": "Facturas ARCA",
-  "short_name": "ARCA",
+  "name": "AlquiBot ARCA",
+  "short_name": "AlquiBot",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f0f2f5",
   "theme_color": "#1a2744",
   "icons": [
     {
-      "src": "/static/logo.jpg",
+      "src": "/static/logo.png",
       "sizes": "192x192",
-      "type": "image/jpeg"
+      "type": "image/png"
     },
     {
-      "src": "/static/logo.jpg",
+      "src": "/static/logo.png",
       "sizes": "512x512",
-      "type": "image/jpeg"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
