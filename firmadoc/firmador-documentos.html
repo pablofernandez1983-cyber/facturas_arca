@@ -6,9 +6,6 @@
 <title>FirmaDoc — Firma Digital</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/docx-preview@0.1.22/dist/docx-preview.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&family=Dancing+Script:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -617,12 +614,20 @@ async function processFile(file){
   if(!['pdf','doc','docx'].includes(ext)){showStatus('Formato no soportado.','error');return}
   showLoading('Cargando documento...');
   try{
-    if(!window.JSZip)throw new Error('No se cargó JSZip; no se puede abrir Word');
-    if(!window.docx?.renderAsync)throw new Error('No se cargó docx-preview; no se puede abrir Word');
-    if(ext==='pdf')await loadPDF(file);else{
-      if(!window.JSZip)throw new Error('No se cargó JSZip; no se puede abrir Word');
-      if(!window.docx?.renderAsync)throw new Error('No se cargó docx-preview; no se puede abrir Word');
-      await loadWordStable(file);
+    if(ext==='pdf'){
+      await loadPDF(file);
+    }else{
+      showLoading('Convirtiendo Word a PDF...');
+      const formData=new FormData();
+      formData.append('file',file);
+      const resp=await fetch('/firmadoc/convert',{method:'POST',body:formData});
+      if(!resp.ok){
+        const err=await resp.json().catch(()=>({detail:'Error desconocido'}));
+        throw new Error(err.detail||'Error al convertir el documento');
+      }
+      const pdfBlob=await resp.blob();
+      const pdfFile=new File([pdfBlob],currentFileName+'.pdf',{type:'application/pdf'});
+      await loadPDF(pdfFile);
     }
     document.getElementById('docName').textContent=file.name;
     document.getElementById('docViewer').classList.add('visible');
