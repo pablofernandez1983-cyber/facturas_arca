@@ -107,18 +107,19 @@ header h1 span{color:var(--gold)}
 
 /* SAVED SIGNATURES */
 .saved-sigs-wrap{padding:var(--space-sm) var(--space-md)}
-.saved-sigs-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.sig-slot{border-radius:10px;border:1.5px dashed rgba(26,20,16,.18);background:var(--paper);overflow:hidden;transition:all .2s;position:relative}
+.saved-sigs-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sig-slot{border-radius:9px;border:1.5px dashed rgba(26,20,16,.18);background:var(--paper);overflow:hidden;transition:all .2s;position:relative}
 .sig-slot.has-sig{border-style:solid;border-color:rgba(201,168,76,.5);background:#fff}
-.sig-slot-preview{height:68px;display:flex;align-items:center;justify-content:center;padding:6px}
-.sig-slot-preview img{max-height:54px;max-width:100%;object-fit:contain}
-.sig-slot-preview .empty-icon{font-size:1.5rem;opacity:.35}
-.sig-slot-footer{border-top:1px solid rgba(26,20,16,.08);padding:5px 8px;display:flex;align-items:center;gap:4px;background:rgba(26,20,16,.02)}
+.sig-slot-preview{height:54px;display:flex;align-items:center;justify-content:center;padding:5px}
+.sig-slot-preview img{max-height:40px;max-width:100%;object-fit:contain}
+.sig-slot-preview .empty-icon{font-size:1.2rem;opacity:.35}
+.sig-slot-footer{border-top:1px solid rgba(26,20,16,.08);padding:4px 6px;display:flex;align-items:center;gap:4px;background:rgba(26,20,16,.02)}
 .sig-slot-name{font-size:var(--font-xs);font-weight:500;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#5a4e42}
 .sig-slot-actions{display:flex;gap:3px}
-.sig-slot-btn{height:26px;border-radius:4px;border:none;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;padding:0 8px;white-space:nowrap}
+.sig-slot-btn{height:22px;border-radius:4px;border:none;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;padding:0 7px;white-space:nowrap}
 .slot-use-btn{background:var(--ink);color:var(--gold)}
-.slot-del-btn{background:#f0e8e8;color:var(--rust);width:26px;padding:0}
+.slot-del-btn{background:#f0e8e8;color:var(--rust);width:22px;padding:0}
+.text-slot-preview{height:54px;padding:6px 8px;display:flex;align-items:center;justify-content:center;text-align:center;white-space:pre-line;font-family:'DM Sans',sans-serif;font-size:11px;line-height:1.3;color:#3f352c}
 
 /* SIG PAD */
 .sig-pad-wrap{padding:var(--space-sm) var(--space-md);display:flex;flex-direction:column;gap:12px}
@@ -130,6 +131,8 @@ header h1 span{color:var(--gold)}
 #sigCanvas{width:100%;height:clamp(120px,32vw,150px);border-radius:8px;background:#fff;border:1px solid rgba(26,20,16,.2);cursor:crosshair;touch-action:none;display:block}
 .type-sig-input{font-family:'Dancing Script',cursive;font-size:clamp(1.3rem,5vw,1.8rem);width:100%;text-align:center;padding:10px;border:1px solid rgba(26,20,16,.2);border-radius:8px;background:#fff;color:var(--ink);outline:none}
 .type-sig-preview{font-family:'Dancing Script',cursive;text-align:center;padding:14px;border-radius:8px;background:#fff;border:1px solid var(--cream);min-height:68px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.text-block-input{width:100%;min-height:96px;padding:10px 12px;border:1px solid rgba(26,20,16,.2);border-radius:8px;background:#fff;color:var(--ink);outline:none;font-family:'DM Sans',sans-serif;font-size:var(--font-sm);line-height:1.5;resize:vertical;text-align:center}
+.text-block-preview{padding:14px;border-radius:8px;background:#fff;border:1px solid var(--cream);min-height:78px;white-space:pre-line;font-family:'DM Sans',sans-serif;font-size:var(--font-md);line-height:1.5;color:var(--ink);text-align:center;display:flex;align-items:center;justify-content:center}
 
 /* IMAGE BG REMOVAL */
 .img-drop{border:2px dashed rgba(26,20,16,.15);border-radius:8px;padding:clamp(16px,5vw,24px) var(--space-sm);text-align:center;cursor:pointer;background:var(--paper);font-size:var(--font-sm);color:#7a6e62;transition:all .15s}
@@ -281,8 +284,14 @@ input[type=file]{display:none}
       <!-- FIRMAS GUARDADAS -->
       <div id="savedSigsSection" style="padding:0 var(--space-md) var(--space-sm)">
         <p style="font-size:var(--font-xs);color:#7a6e62;font-weight:600;margin:0 0 8px;text-transform:uppercase;letter-spacing:.05em">Firmas guardadas</p>
-        <div id="savedSigsGrid"></div>
+        <div id="savedSigsGrid" class="saved-sigs-grid"></div>
         <p id="savedSigsEmpty" style="font-size:var(--font-xs);color:#b0a898;text-align:center;margin:6px 0 0;display:none">Guardá una firma abajo para reutilizarla</p>
+      </div>
+
+      <div id="savedTextsSection" style="padding:0 var(--space-md) var(--space-sm)">
+        <p style="font-size:var(--font-xs);color:#7a6e62;font-weight:600;margin:0 0 8px;text-transform:uppercase;letter-spacing:.05em">Texto Firma</p>
+        <div id="savedTextsGrid" class="saved-sigs-grid"></div>
+        <p id="savedTextsEmpty" style="font-size:var(--font-xs);color:#b0a898;text-align:center;margin:6px 0 0;display:none">Guardá un texto abajo para reutilizarlo</p>
       </div>
 
       <div style="height:1px;background:rgba(26,20,16,.08);margin:0 var(--space-md) var(--space-sm)"></div>
@@ -292,6 +301,7 @@ input[type=file]{display:none}
         <div class="sig-tabs">
           <button class="sig-tab active" onclick="switchTab('draw')">✏️ Dibujar</button>
           <button class="sig-tab" onclick="switchTab('type')">Aa Texto</button>
+          <button class="sig-tab" onclick="switchTab('info')">ID Texto</button>
           <button class="sig-tab" onclick="switchTab('image')">🖼 Foto</button>
         </div>
 
@@ -343,6 +353,26 @@ input[type=file]{display:none}
           <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="applyTypeSig()">Insertar ↓</button>
         </div>
 
+        <div class="sig-panel" id="tab-info">
+          <textarea class="text-block-input" id="infoTextInput" oninput="updateInfoPreview()">ANA WAINSTEIN
+DNI 6.045.299</textarea>
+          <div class="text-block-preview" id="infoTextPreview" style="margin-top:10px">ANA WAINSTEIN
+DNI 6.045.299</div>
+          <div class="color-row" style="margin-top:10px">
+            <span class="color-label">Color:</span>
+            <div class="color-dot active" style="background:#1a1410" onclick="setInfoTextColor(this,'#1a1410')"></div>
+            <div class="color-dot" style="background:#1a3a5c" onclick="setInfoTextColor(this,'#1a3a5c')"></div>
+            <div class="color-dot" style="background:#8b3a2a" onclick="setInfoTextColor(this,'#8b3a2a')"></div>
+            <div class="color-dot" style="background:#2d5a27" onclick="setInfoTextColor(this,'#2d5a27')"></div>
+          </div>
+          <div class="slider-row"><label>Tamaño:</label><input type="range" id="infoTextSize" min="14" max="30" value="18" oninput="updateInfoPreview()"><span class="slider-val" id="infoTextSizeVal">18</span></div>
+          <div class="save-sig-row">
+            <label>Guardar:</label>
+            <select class="save-sig-select" id="infoSaveSlot"><option value="">— no guardar —</option><option value="0">Texto firma 1</option><option value="1">Texto firma 2</option></select>
+            <button class="save-sig-btn" onclick="saveCurrentSig('info')">💾</button>
+          </div>
+          <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="applyInfoText()">Insertar ↓</button>
+        </div>
         <!-- IMAGE -->
         <div class="sig-panel" id="tab-image">
           <div class="img-drop" id="imgDrop" onclick="document.getElementById('sigImgInput').click()">
@@ -407,6 +437,7 @@ let sigImageOriginal=null,currentSigDataUrl=null;
 let docLoaded=false,renderedPageImages=[],currentFileName='';
 let renderScale=2.2; // track actual render scale used
 const LS_KEY='firmadoc_sigs_v3';
+const TEXT_LS_KEY='firmadoc_texts_v1';
 
 function getRenderScale(){
   return isMobile()?1.35:2.2;
@@ -431,6 +462,9 @@ function getWordPageWidth(){
 function loadSaved(){try{return JSON.parse(localStorage.getItem(LS_KEY))||defSlots()}catch{return defSlots()}}
 function defSlots(){return[{name:'Firma 1',data:null},{name:'Firma 2',data:null}]}
 function persistSaved(s){try{localStorage.setItem(LS_KEY,JSON.stringify(s))}catch{}}
+function loadSavedTexts(){try{return JSON.parse(localStorage.getItem(TEXT_LS_KEY))||defTextSlots()}catch{return defTextSlots()}}
+function defTextSlots(){return[{name:'Texto firma 1',text:null},{name:'Texto firma 2',text:null}]}
+function persistSavedTexts(s){try{localStorage.setItem(TEXT_LS_KEY,JSON.stringify(s))}catch{}}
 
 function renderSavedGrid(){
   const sigs=loadSaved(),grid=document.getElementById('savedSigsGrid');
@@ -451,6 +485,26 @@ function renderSavedGrid(){
       </div>`;
     grid.appendChild(slot);
     });
+  const textSlots=loadSavedTexts(),textGrid=document.getElementById('savedTextsGrid');
+  if(textGrid){
+    textGrid.innerHTML='';
+    textSlots.forEach((slotData,i)=>{
+      const slot=document.createElement('div');
+      slot.className='sig-slot'+(slotData.text?' has-sig':'');
+      slot.innerHTML=`
+        <div class="text-slot-preview">${slotData.text||'<span style="color:#b0a898">Vacío</span>'}</div>
+        <div class="sig-slot-footer">
+          <span class="sig-slot-name">${slotData.name}</span>
+          <div class="sig-slot-actions">
+            ${slotData.text
+              ?`<button class="sig-slot-btn slot-use-btn" onclick="useSavedText(${i})">▶</button>
+                 <button class="sig-slot-btn slot-del-btn" onclick="delSavedText(${i})">✕</button>`
+              :'<span style="font-size:var(--font-xs);color:#b0a898">Vacío</span>'}
+          </div>
+        </div>`;
+      textGrid.appendChild(slot);
+    });
+  }
 }
 
 function saveToSlot(idx,data){
@@ -459,6 +513,13 @@ function saveToSlot(idx,data){
 }
 function useSaved(i){const s=loadSaved();if(s[i].data)insertOverlay(s[i].data)}
 function delSaved(i){const s=loadSaved();s[i].data=null;persistSaved(s);renderSavedGrid();toast('🗑 Eliminada')}
+
+function saveTextToSlot(idx,text){
+  const s=loadSavedTexts();s[idx].text=text;persistSavedTexts(s);renderSavedGrid();
+  toast(`Texto guardado en ${s[idx].name}`);
+}
+function useSavedText(i){const s=loadSavedTexts();if(s[i].text)insertOverlay(renderInfoTextUrl(s[i].text))}
+function delSavedText(i){const s=loadSavedTexts();s[i].text=null;persistSavedTexts(s);renderSavedGrid();toast('Texto eliminado')}
 
 function saveCurrentSig(src){
   let idx,data;
@@ -471,6 +532,11 @@ function saveCurrentSig(src){
     idx=document.getElementById('typeSaveSlot').value;if(idx===''){toast('Elegí un slot');return}
     const val=document.getElementById('typeSigInput').value.trim();if(!val){toast('Escribí tu nombre');return}
     data=renderTypeUrl(val);
+  } else if(src==='info'){
+    idx=document.getElementById('infoSaveSlot').value;if(idx===''){toast('Elegí un slot');return}
+    const val=document.getElementById('infoTextInput').value.trim();if(!val){toast('Escribí el texto');return}
+    saveTextToSlot(parseInt(idx),val);
+    return;
   } else {
     idx=document.getElementById('imgSaveSlot').value;if(idx===''){toast('Elegí un slot');return}
     if(!currentSigDataUrl){toast('Procesá una imagen primero');return}
@@ -512,7 +578,7 @@ function applyLayout(){
     document.getElementById('mobileNav').style.display='none';
   }
 }
-window.addEventListener('load',()=>{applyLayout();renderSavedGrid();setTimeout(initSigCanvas,150)});
+window.addEventListener('load',()=>{applyLayout();renderSavedGrid();setTimeout(initSigCanvas,150);setTimeout(updateInfoPreview,120)});
 window.addEventListener('resize',applyLayout);
 
 // ── FILE UPLOAD ────────────────────────────────────────────
@@ -695,7 +761,7 @@ async function loadWord(file){
       c.appendChild(wrapper);
     }
     totalPages=pageNodes.length;
-    document.getElementById('pageInfo').textContent=`${totalPages} pÃ¡g.`;
+    document.getElementById('pageInfo').textContent=`${totalPages} pág.`;
 
   } finally {
     document.body.removeChild(previewDiv);
@@ -796,7 +862,7 @@ function setThick(val,el){sigThickness=val;sigCtx.lineWidth=val;document.querySe
 
 // ── TABS ───────────────────────────────────────────────────
 function switchTab(tab){
-  ['draw','type','image'].forEach((t,i)=>document.querySelectorAll('.sig-tab')[i].classList.toggle('active',t===tab));
+  ['draw','type','info','image'].forEach((t,i)=>document.querySelectorAll('.sig-tab')[i].classList.toggle('active',t===tab));
   document.querySelectorAll('.sig-panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
   if(tab==='draw')setTimeout(initSigCanvas,60);
@@ -823,6 +889,45 @@ function applyTypeSig(){
 }
 
 // ── IMAGE BG REMOVAL ───────────────────────────────────────
+function updateInfoPreview(){
+  const val=document.getElementById('infoTextInput').value.trim();
+  const size=document.getElementById('infoTextSize').value;
+  document.getElementById('infoTextSizeVal').textContent=size;
+  const prev=document.getElementById('infoTextPreview');
+  prev.style.color=sigTypColor;
+  prev.style.fontSize=size+'px';
+  prev.textContent=val||'ANA WAINSTEIN\nDNI 6.045.299';
+}
+function setInfoTextColor(el,color){
+  sigTypColor=color;
+  document.querySelectorAll('#tab-info .color-dot').forEach(d=>d.classList.remove('active'));
+  el.classList.add('active');
+  updateInfoPreview();
+}
+function renderInfoTextUrl(val){
+  const size=parseInt(document.getElementById('infoTextSize').value,10)||18;
+  const lines=(val||'').split(/\r?\n/).filter(Boolean);
+  const canvas=document.createElement('canvas');
+  const ctx=canvas.getContext('2d');
+  ctx.font=`600 ${size}px 'DM Sans', sans-serif`;
+  const maxWidth=Math.max(...lines.map(line=>ctx.measureText(line).width),160);
+  const lineHeight=Math.round(size*1.45);
+  canvas.width=Math.ceil(maxWidth+40);
+  canvas.height=Math.ceil(lines.length*lineHeight+20);
+  const draw=canvas.getContext('2d');
+  draw.font=`600 ${size}px 'DM Sans', sans-serif`;
+  draw.fillStyle=sigTypColor;
+  draw.textBaseline='top';
+  draw.textAlign='center';
+  lines.forEach((line,i)=>draw.fillText(line,canvas.width/2,10+i*lineHeight));
+  return canvas.toDataURL('image/png');
+}
+function applyInfoText(){
+  const val=document.getElementById('infoTextInput').value.trim();
+  if(!val){toast('Escribí el texto a insertar');return}
+  insertOverlay(renderInfoTextUrl(val));
+}
+
 function loadSigImage(e){
   const file=e.target.files[0];if(!file)return;e.target.value='';currentSigDataUrl=null;
   const reader=new FileReader();
