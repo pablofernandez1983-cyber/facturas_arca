@@ -665,8 +665,8 @@ async function captureWordNode(pageNode,scale,pageW){
   const pageCssHeight=Math.max(1,Math.ceil(rect.height||pageNode.scrollHeight||1));
   const capturedCanvas=await html2canvas(pageNode,{
     scale:scale,
-    useCORS:false,
-    allowTaint:false,
+    useCORS:true,
+    allowTaint:true,
     backgroundColor:'#ffffff',
     logging:false,
     width:pageCssWidth,
@@ -825,18 +825,12 @@ async function loadWordStable(file){
     // Esperar que carguen imágenes y fuentes
     await new Promise(r=>setTimeout(r,600));
 
-    const pageCandidates=Array.from(previewDiv.querySelectorAll('.docx-wrapper > section, .docx-wrapper .docx, section.docx, .docx'));
-    let pageNodes=pageCandidates.filter(el=>el.getBoundingClientRect().height>20&&el.getBoundingClientRect().width>20);
-    const wrapperRoot=previewDiv.querySelector('.docx-wrapper')||previewDiv.firstElementChild||previewDiv;
-    if(!pageNodes.length&&wrapperRoot&&wrapperRoot.getBoundingClientRect().height>20)pageNodes=[wrapperRoot];
-
-    for(let i=0;i<pageNodes.length;i++){
-      showLoading(`Renderizando página ${i+1}/${pageNodes.length}...`);
-      const result=await captureWordNode(pageNodes[i],scale,pageW);
-      if(result.capturedCanvas.width>20&&result.capturedCanvas.height>20){
-        appendWordCanvas(c,result.capturedCanvas,result.pageCssWidth,i);
-      }
-    }
+    // Capturar el contenido completo y dividir en páginas
+    showLoading('Capturando documento...');
+    const captureRoot=previewDiv.querySelector('.docx-wrapper')||previewDiv.firstElementChild||previewDiv;
+    const result=await captureWordNode(captureRoot,scale,pageW);
+    const pages=splitCanvasIntoPages(result.capturedCanvas,result.pageCssWidth);
+    pages.forEach((page,i)=>appendWordCanvas(c,page.canvas,page.pageCssWidth,i));
 
     if(!renderedPageImages.length)throw new Error('No se pudo capturar el documento');
     totalPages=renderedPageImages.length;
