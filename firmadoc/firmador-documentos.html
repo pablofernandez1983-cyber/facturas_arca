@@ -131,8 +131,8 @@ header h1 span{color:var(--gold)}
 #sigCanvas{width:100%;height:clamp(120px,32vw,150px);border-radius:8px;background:#fff;border:1px solid rgba(26,20,16,.2);cursor:crosshair;touch-action:none;display:block}
 .type-sig-input{font-family:'Dancing Script',cursive;font-size:clamp(1.3rem,5vw,1.8rem);width:100%;text-align:center;padding:10px;border:1px solid rgba(26,20,16,.2);border-radius:8px;background:#fff;color:var(--ink);outline:none}
 .type-sig-preview{font-family:'Dancing Script',cursive;text-align:center;padding:14px;border-radius:8px;background:#fff;border:1px solid var(--cream);min-height:68px;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.text-block-input{width:100%;min-height:96px;padding:10px 12px;border:1px solid rgba(26,20,16,.2);border-radius:8px;background:#fff;color:var(--ink);outline:none;font-family:'DM Sans',sans-serif;font-size:var(--font-sm);line-height:1.5;resize:vertical;text-align:center}
-.text-block-preview{padding:14px;border-radius:8px;background:#fff;border:1px solid var(--cream);min-height:78px;white-space:pre-line;font-family:'DM Sans',sans-serif;font-size:var(--font-md);line-height:1.5;color:var(--ink);text-align:center;display:flex;align-items:center;justify-content:center}
+.text-block-input{width:100%;min-height:96px;padding:10px 12px;border:1px solid rgba(26,20,16,.2);border-radius:8px;background:#fff;color:var(--ink);outline:none;font-family:'DM Sans',sans-serif;font-weight:300;font-size:var(--font-sm);line-height:1.5;resize:vertical;text-align:center}
+.text-block-preview{padding:14px;border-radius:8px;background:#fff;border:1px solid var(--cream);min-height:78px;white-space:pre-line;font-family:'DM Sans',sans-serif;font-weight:300;font-size:var(--font-md);line-height:1.5;color:var(--ink);text-align:center;display:flex;align-items:center;justify-content:center}
 
 /* IMAGE BG REMOVAL */
 .img-drop{border:2px dashed rgba(26,20,16,.15);border-radius:8px;padding:clamp(16px,5vw,24px) var(--space-sm);text-align:center;cursor:pointer;background:var(--paper);font-size:var(--font-sm);color:#7a6e62;transition:all .15s}
@@ -1243,6 +1243,26 @@ function handleTouchStart(e){
   if(el.classList.contains('confirmed'))return;
   document.querySelectorAll('.sig-overlay').forEach(o=>o.classList.remove('selected'));
   el.classList.add('selected');
+
+  // 1 dedo sobre la flechita de resize → resize con 1 dedo
+  if(e.touches.length===1 && e.target.classList.contains('sig-resize')){
+    const img=el.querySelector('img');if(!img)return;
+    const startY=e.touches[0].clientY;
+    const startH=img.offsetHeight;
+    function mv(e){
+      e.preventDefault();
+      if(e.touches.length!==1)return;
+      const dy=e.touches[0].clientY-startY;
+      resizeOverlayToHeight(el,startH+dy);
+    }
+    function end(){
+      document.removeEventListener('touchmove',mv);
+      document.removeEventListener('touchend',end);
+    }
+    document.addEventListener('touchmove',mv,{passive:false});
+    document.addEventListener('touchend',end);
+    return;
+  }
 
   const img=el.querySelector('img');
   let pinching=false;
