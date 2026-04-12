@@ -11,16 +11,13 @@ Env vars en Railway:
 
 import os
 import calendar
-import subprocess
-import tempfile
-import shutil
 from datetime import date
 
 NOMBRES_MES_ES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
                   "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 import httpx
-from fastapi import FastAPI, Request, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 SUPABASE_URL      = os.environ["SUPABASE_URL"]
@@ -225,46 +222,6 @@ async def copiar_mes(request: Request):
             return JSONResponse(status_code=ins.status_code, content={"error": ins.text})
 
     return {"ok": True, "copiadas": len(nuevas), "mes_origen": mes_origen, "mes_destino": mes_destino}
-
-
-@app.post("/firmadoc/convert")
-async def firmadoc_convert(file: UploadFile = File(...)):
-    """Convierte .doc / .docx a PDF usando LibreOffice headless."""
-    ext = os.path.splitext(file.filename or "")[1].lower()
-    if ext not in (".doc", ".docx"):
-        raise HTTPException(status_code=400, detail="Solo se aceptan archivos .doc o .docx")
-
-    tmp = tempfile.mkdtemp()
-    try:
-        src = os.path.join(tmp, f"input{ext}")
-        with open(src, "wb") as f:
-            f.write(await file.read())
-
-        result = subprocess.run(
-            ["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", tmp, src],
-            capture_output=True,
-            timeout=60,
-        )
-        if result.returncode != 0:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Error al convertir: {result.stderr.decode(errors='replace')}",
-            )
-
-        pdf_path = os.path.join(tmp, "input.pdf")
-        if not os.path.exists(pdf_path):
-            raise HTTPException(status_code=500, detail="LibreOffice no generó el PDF")
-
-        with open(pdf_path, "rb") as f:
-            pdf_bytes = f.read()
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
-
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": "inline; filename=converted.pdf"},
-    )
 
 
 if __name__ == "__main__":
