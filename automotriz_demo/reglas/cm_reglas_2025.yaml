@@ -1,0 +1,168 @@
+ingresos:
+- id: ING-001
+  descripcion: 'Exportaciones: no integran base CM'
+  aplica_cuando:
+    es_exportacion: true
+  metodo: excluir
+  sustento_normativo: Art. 1 CM - solo actividades dentro del país
+  responsable_decision: Estudio contable
+  notas_año: Sin cambios
+- id: ING-001A
+  descripcion: 'Cliente CLI-N-0091: entrega operativa en Buenos Aires, destino economico
+    La Rioja'
+  aplica_cuando:
+    cliente_id: CLI-N-0091
+    es_exportacion: false
+  metodo: directo_a_jurisdiccion
+  jurisdiccion: La Pampa
+  responsable_decision: Pablo + Estudio contable
+  notas_año: '2025: excepcion documentada para no modificar el dato fuente de entrega
+    logistica'
+- id: ING-002
+  descripcion: 'Ventas nacionales: jurisdicción del lugar de entrega'
+  aplica_cuando:
+    es_exportacion: false
+  metodo: directo_por_campo
+  campo_jurisdiccion: jurisdiccion_entrega
+  sustento_normativo: Art. 1 CM + RG CA 14/2017 (sustento territorial)
+  responsable_decision: Pablo + Estudio contable
+  notas_año: 'Confirmado: usar lugar de entrega, no domicilio fiscal del cliente'
+gastos:
+- id: GTO-001
+  descripcion: 'Materia prima directa: NO computable en CM'
+  aplica_cuando:
+    tipo_gasto:
+    - MP_directa
+    - MP_importada
+  metodo: no_computable
+  sustento_normativo: Art. 3 CM - costo de mercaderías no es gasto computable
+  notas_año: Aplica a 51001, 51002, 51003, 51100, 51200
+- id: GTO-002
+  descripcion: 'Intereses y diferencias de cambio: NO computable'
+  aplica_cuando:
+    tipo_gasto:
+    - financiero
+  metodo: no_computable
+  sustento_normativo: Art. 3 CM - gastos financieros excluidos
+- id: GTO-003
+  descripcion: 'Royalties y management fees al exterior: NO computable'
+  aplica_cuando:
+    tipo_gasto:
+    - servicios_ext
+  metodo: no_computable
+  sustento_normativo: Art. 3 CM + RG CA 5/2018
+  notas_año: Casa matriz Brasil. Confirmar criterio con estudio el año que viene.
+- id: GTO-010
+  descripcion: 'Energía y gas: directo a jurisdicción de la planta'
+  aplica_cuando:
+    tipo_gasto:
+    - energia
+    tiene_planta: true
+  metodo: directo_por_planta
+  sustento_normativo: Sustento físico directo
+- id: GTO-011
+  descripcion: 'Mantenimiento equipos productivos: directo a planta'
+  aplica_cuando:
+    tipo_gasto:
+    - mantenimiento
+    tiene_planta: true
+  metodo: directo_por_planta
+- id: GTO-012
+  descripcion: 'Alquileres y servicios oficinas administrativas: directo'
+  aplica_cuando:
+    tipo_gasto:
+    - estructura
+    tiene_planta: true
+  metodo: directo_por_planta
+- id: GTO-013
+  descripcion: 'Amortizaciones de edificios admin: directo a sucursal'
+  aplica_cuando:
+    cuenta:
+    - 75200
+    tiene_planta: true
+  metodo: directo_por_planta
+- id: GTO-020
+  descripcion: 'Sueldos y cargas sociales: prorrateo según padrón empleados por jurisdicción
+    de trabajo'
+  aplica_cuando:
+    tipo_gasto:
+    - personal
+  metodo: prorrateo_por_driver
+  driver: empleados_por_jurisdiccion
+  responsable_decision: RRHH proporciona padrón
+  notas_año: Padrón actualizado a marzo 2025
+- id: GTO-030
+  descripcion: 'Amortizaciones de plantas productivas: por horas máquina'
+  aplica_cuando:
+    cuenta:
+    - 75100
+  metodo: prorrateo_por_driver
+  driver: horas_maquina_por_jurisdiccion
+  sustento_normativo: Driver físico - consumo real del activo
+- id: GTO-040
+  descripcion: 'Fletes nacionales: jurisdicción de destino (sigue al ingreso)'
+  aplica_cuando:
+    cuenta:
+    - 63100
+  metodo: prorrateo_por_ingresos_nacionales
+  notas_año: 'Aproximación: prorrateo por ingresos nacionales. Idealmente debería
+    ser por destino de remito, pero el dato no está consolidado.'
+- id: GTO-041
+  descripcion: 'Fletes exportación: directo a jurisdicción de la planta origen'
+  aplica_cuando:
+    cuenta:
+    - 63200
+  metodo: prorrateo_por_ventas_export_por_planta
+- id: GTO-042
+  descripcion: 'Almacenaje y logística inversa: prorrateo por ingresos nacionales'
+  aplica_cuando:
+    cuenta:
+    - 63300
+  metodo: prorrateo_por_ingresos_nacionales
+- id: GTO-050
+  descripcion: 'Marketing y publicidad nacional: prorrateo por ingresos nacionales'
+  aplica_cuando:
+    cuenta:
+    - 64100
+  metodo: prorrateo_por_ingresos_nacionales
+  notas_año: '2025: cambiamos. Antes 100% CABA por sede del proveedor; ahora prorrateo
+    por ingresos. Dictamen ARBA X/2024.'
+- id: GTO-051
+  descripcion: 'Comisiones a concesionarios: jurisdicción del concesionario (proxy:
+    ingresos nacionales)'
+  aplica_cuando:
+    cuenta:
+    - 64200
+  metodo: prorrateo_por_ingresos_nacionales
+- id: GTO-052
+  descripcion: 'Marketing institucional: asignación manual por decisión de Dirección'
+  aplica_cuando:
+    cuenta:
+    - 64300
+  metodo: porcentaje_manual
+  porcentajes_jurisdiccion:
+    Buenos Aires: 10
+    CABA: 25
+    Córdoba: 35
+    Santa Fe: 10
+    Mendoza: 8
+    Tucumán: 4
+    Salta: 3
+    Misiones: 2
+    Otras: 3
+  responsable_decision: Dirección comercial
+  notas_año: '2025: subimos CABA del 20 al 25 y bajamos Buenos Aires del 35 al 30
+    por lanzamiento campaña institucional sede central.'
+- id: GTO-090
+  descripcion: 'Otros gastos operativos: prorrateo por ingresos nacionales'
+  aplica_cuando:
+    tipo_gasto:
+    - otros
+    - servicios
+  metodo: prorrateo_por_ingresos_nacionales
+- id: GTO-099
+  descripcion: 'REGLA RESIDUAL: cualquier gasto computable no clasificado'
+  aplica_cuando: {}
+  metodo: prorrateo_por_ingresos_nacionales
+  notas_año: Capturar gastos no contemplados explícitamente para no perder filas.
+    Revisar al final de cada corrida.

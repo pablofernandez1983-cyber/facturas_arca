@@ -1,0 +1,224 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.23.8",
+    "script_metadata_hash": null
+  },
+  "cells": [
+    {
+      "id": "Hbol",
+      "code_hash": "b69b5a1fea767c5490c50e5a6261f890",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "MJUe",
+      "code_hash": "2a64a91d4656b75ec58bc5c4e75798ba",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h1 id=\"automotriz-argentina-sa-panel-de-atribucion-2025\">Automotriz Argentina S.A. - Panel de Atribuci\u00f3n 2025</h1>\n<span class=\"paragraph\">Demo de motor de reglas para:</span>\n<ul>\n<li><strong>Convenio Multilateral</strong>: coeficientes por jurisdicci\u00f3n.</li>\n<li><strong>Precios de Transferencia / Segmentaci\u00f3n</strong>: P&amp;L por l\u00ednea de negocio.</li>\n</ul>\n<span class=\"paragraph\">Mismo dataset crudo, dos l\u00f3gicas distintas, trazabilidad total v\u00eda ledger.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "vblA",
+      "code_hash": "e28ba1fc3d62571bbcc0646c13896c1e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='vblA-0' random-id='60ba7f7c-9c20-c4a4-1fa6-0662b55bfc79'><marimo-tabs data-initial-value='&quot;0&quot;' data-label='null' data-tabs='[&quot;&#92;u003cspan class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&#92;u003e&#92;u003cspan class=&#92;&quot;paragraph&#92;&quot;&#92;u003eDashboard general&#92;u003c/span&#92;u003e&#92;u003c/span&#92;u003e&quot;,&quot;&#92;u003cspan class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&#92;u003e&#92;u003cspan class=&#92;&quot;paragraph&#92;&quot;&#92;u003eConvenio Multilateral&#92;u003c/span&#92;u003e&#92;u003c/span&#92;u003e&quot;,&quot;&#92;u003cspan class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&#92;u003e&#92;u003cspan class=&#92;&quot;paragraph&#92;&quot;&#92;u003ePrecios de Transferencia&#92;u003c/span&#92;u003e&#92;u003c/span&#92;u003e&quot;,&quot;&#92;u003cspan class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&#92;u003e&#92;u003cspan class=&#92;&quot;paragraph&#92;&quot;&#92;u003eExplorador de ledger&#92;u003c/span&#92;u003e&#92;u003c/span&#92;u003e&quot;,&quot;&#92;u003cspan class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&#92;u003e&#92;u003cspan class=&#92;&quot;paragraph&#92;&quot;&#92;u003eEditor de reglas&#92;u003c/span&#92;u003e&#92;u003c/span&#92;u003e&quot;,&quot;&#92;u003cspan class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&#92;u003e&#92;u003cspan class=&#92;&quot;paragraph&#92;&quot;&#92;u003eReglas activas&#92;u003c/span&#92;u003e&#92;u003c/span&#92;u003e&quot;]' data-orientation='&quot;horizontal&quot;'><div data-kind='tab'><span class=\"markdown prose dark:prose-invert contents\"></span></div><div data-kind='tab'><span class=\"markdown prose dark:prose-invert contents\"></span></div><div data-kind='tab'><span class=\"markdown prose dark:prose-invert contents\"></span></div><div data-kind='tab'><span class=\"markdown prose dark:prose-invert contents\"></span></div><div data-kind='tab'><span class=\"markdown prose dark:prose-invert contents\"></span></div><div data-kind='tab'><span class=\"markdown prose dark:prose-invert contents\"></span></div></marimo-tabs></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "bkHC",
+      "code_hash": "e83c4b9804b5f58bf71cf37049eb7a5e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='bkHC-0' random-id='0b9ec116-82d9-e035-05ca-0ac006f7a97d'><marimo-button data-initial-value='0' data-label='&quot;&#92;u003cspan class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&#92;u003e&#92;u003cspan class=&#92;&quot;paragraph&#92;&quot;&#92;u003eRecalcular datos&#92;u003c/span&#92;u003e&#92;u003c/span&#92;u003e&quot;' data-kind='&quot;success&quot;' data-disabled='false' data-full-width='false'></marimo-button></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "lEQa",
+      "code_hash": "7219e70152e6a6603c6a90cca817b872",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": [
+        {
+          "type": "stream",
+          "name": "stdout",
+          "text": "Procesando ingresos (12,000 facturas)...\nCalculando drivers...\nProcesando gastos (8,000 asientos)...\nProcesando ingresos (12,000 facturas)...\nCalculando drivers...\nProcesando gastos (8,000 asientos)...\n",
+          "mimetype": "text/plain"
+        }
+      ]
+    },
+    {
+      "id": "PKri",
+      "code_hash": "23e57ecc7f671b90ab175091e1b41968",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<div style='display: flex;flex: 1;flex-direction: column;justify-content: flex-start;align-items: normal;flex-wrap: nowrap;gap: 0.5rem'><div style='display: flex;flex: 1;flex-direction: row;justify-content: space-between;align-items: normal;flex-wrap: nowrap;gap: 0.5rem'><marimo-stat data-value='&quot;12,000&quot;' data-label='&quot;Facturas&quot;' data-caption='&quot;Ingresos 2025&quot;' data-bordered='false' data-target_direction='&quot;increase&quot;'></marimo-stat><marimo-stat data-value='&quot;8,000&quot;' data-label='&quot;Asientos&quot;' data-caption='&quot;Gastos 2025&quot;' data-bordered='false' data-target_direction='&quot;increase&quot;'></marimo-stat><marimo-stat data-value='&quot;2,000&quot;' data-label='&quot;Empleados&quot;' data-bordered='false' data-target_direction='&quot;increase&quot;'></marimo-stat><marimo-stat data-value='&quot;195&quot;' data-label='&quot;Clientes&quot;' data-caption='&quot;15 exportaci\u00f3n&quot;' data-bordered='false' data-target_direction='&quot;increase&quot;'></marimo-stat><marimo-stat data-value='&quot;105&quot;' data-label='&quot;Proveedores&quot;' data-caption='&quot;8 vinculados&quot;' data-bordered='false' data-target_direction='&quot;increase&quot;'></marimo-stat><marimo-stat data-value='&quot;&#36;550.7MM&quot;' data-label='&quot;Ventas&quot;' data-caption='&quot;ARS&quot;' data-bordered='false' data-target_direction='&quot;increase&quot;'></marimo-stat><marimo-stat data-value='&quot;&#36;182.2MM&quot;' data-label='&quot;Gastos&quot;' data-caption='&quot;ARS&quot;' data-bordered='false' data-target_direction='&quot;increase&quot;'></marimo-stat><marimo-stat data-value='&quot;94,297&quot;' data-label='&quot;Ledger total&quot;' data-caption='&quot;filas&quot;' data-bordered='false' data-target_direction='&quot;increase&quot;'></marimo-stat></div><span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"vision-general\">Visi\u00f3n general</h2>\n<span class=\"paragraph\">Las 12,000 ventas y 8,000 gastos generaron un\n<strong>ledger total de 94,297 filas</strong> entre ambos motores.</span>\n<span class=\"paragraph\">Naveg\u00e1 las pesta\u00f1as para revisar coeficientes CM, P&amp;L de PT,\noperaciones vinculadas, reglas activas y el ledger granular filtrable.</span></span></div>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Xref",
+      "code_hash": "131a69376e4b77bd73757b4e3977682f",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "SFPL",
+      "code_hash": "97988e79678f149427fb47cdb4258d26",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "BYtC",
+      "code_hash": "b0f2af455e6acd58bca532c610fe7170",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "RGSE",
+      "code_hash": "1f27ad97a8e94db1425d1f9a42076980",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Kclp",
+      "code_hash": "9acabb9e79c7bc5a490f3a915fa3c435",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "emfo",
+      "code_hash": "205a7085143aa7fb2a46163db50a375e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Hstk",
+      "code_hash": "ee92162a478c019c41059853c61ad0f2",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "nWHF",
+      "code_hash": "f4b861def988a62dc4b7101b1fe29af8",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "iLit",
+      "code_hash": "14820e7ed5869c1106e4ac26e7d97138",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "ZHCJ",
+      "code_hash": "18415d21c0182137c414caa95517bb93",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"></span>"
+          }
+        }
+      ],
+      "console": []
+    }
+  ]
+}

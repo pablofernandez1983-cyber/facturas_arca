@@ -1,0 +1,220 @@
+# =============================================================================
+# REGLAS PRECIOS DE TRANSFERENCIA + SEGMENTACIÓN POR LÍNEA DE NEGOCIO
+# AUTOMOTRIZ S.A. - EJERCICIO 2025
+# =============================================================================
+# Objetivo: armar el P&L segmentado por LÍNEA DE NEGOCIO (Autos / Pickups /
+# Utilitarios / Motos) para análisis de PT y separar transacciones con
+# partes vinculadas.
+# =============================================================================
+
+# Segmentos del negocio
+segmentos:
+  - codigo: AUT
+    nombre: Autos
+    planta_principal: PL-COR
+  - codigo: PKP
+    nombre: Pickups
+    planta_principal: PL-PAC
+  - codigo: UTI
+    nombre: Utilitarios
+    planta_principal: PL-PAC
+  - codigo: MOT
+    nombre: Motos
+    planta_principal: PL-MZA
+
+# =============================================================================
+# REGLAS DE ATRIBUCIÓN DE INGRESOS
+# =============================================================================
+ingresos:
+  - id: ING-SEG-001
+    descripcion: "Ventas: asignación directa por segmento del SKU vendido"
+    aplica_cuando: {}  # todas
+    metodo: directo_por_campo
+    campo_segmento: segmento
+
+# =============================================================================
+# REGLAS DE ATRIBUCIÓN DE COSTOS Y GASTOS
+# =============================================================================
+costos_y_gastos:
+  # ---------------------------------------------------------------------------
+  # COSTOS DIRECTOS DE PRODUCCIÓN
+  # ---------------------------------------------------------------------------
+  - id: GTO-SEG-010
+    descripcion: "Materia prima: asignación directa por planta -> segmento que produce esa planta"
+    aplica_cuando:
+      tipo_gasto: ["MP_directa"]
+      tiene_planta: true
+    metodo: directo_por_planta_a_segmento
+    nota: "Si una planta produce un solo segmento (Córdoba->Autos, Mendoza->Motos) es directo. Pacheco produce Pickups+Utilitarios; se prorratea por unidades producidas."
+
+  - id: GTO-SEG-011
+    descripcion: "Importaciones CKD desde casa matriz: asignación por planta destino"
+    aplica_cuando:
+      tipo_gasto: ["MP_importada"]
+      tiene_planta: true
+    metodo: directo_por_planta_a_segmento
+    flag_pt: importacion_a_vinculada
+    sustento_normativo: "Operación con parte relacionada - sujeta a análisis PT"
+    notas_año: "CRÍTICO PARA PT: validar que precios de transferencia de CKDs estén dentro de rango de comparables. AutoCorp Brasil es casa matriz."
+
+  - id: GTO-SEG-012
+    descripcion: "Autopartes nacionales: por planta destino"
+    aplica_cuando:
+      cuenta: [51200]
+      tiene_planta: true
+    metodo: directo_por_planta_a_segmento
+
+  # ---------------------------------------------------------------------------
+  # ENERGÍA Y MANTENIMIENTO POR PLANTA
+  # ---------------------------------------------------------------------------
+  - id: GTO-SEG-020
+    descripcion: "Energía/gas plantas: por planta. En plantas multi-segmento, prorrateo por kg de consumo de energía."
+    aplica_cuando:
+      tipo_gasto: ["energia"]
+      tiene_planta: true
+    metodo: directo_por_planta_a_segmento
+    driver_multisegmento: kg_consumo_energia
+
+  - id: GTO-SEG-021
+    descripcion: "Mantenimiento equipos productivos: directo a planta, prorrateo multi-segmento por horas máquina"
+    aplica_cuando:
+      tipo_gasto: ["mantenimiento"]
+      tiene_planta: true
+    metodo: directo_por_planta_a_segmento
+    driver_multisegmento: horas_maquina
+
+  - id: GTO-SEG-022
+    descripcion: "Amortizaciones plantas productivas: por horas máquina"
+    aplica_cuando:
+      cuenta: [75100]
+    metodo: prorrateo_global_por_driver
+    driver: horas_maquina_por_segmento
+
+  # ---------------------------------------------------------------------------
+  # SUELDOS Y CARGAS SOCIALES
+  # ---------------------------------------------------------------------------
+  - id: GTO-SEG-030
+    descripcion: "Sueldos producción y cargas sociales prod.: directos a planta, multi-segmento por unidades producidas"
+    aplica_cuando:
+      cuenta: [71100, 71400]
+      tiene_planta: true
+    metodo: directo_por_planta_a_segmento
+    driver_multisegmento: unidades_producidas
+
+  - id: GTO-SEG-031
+    descripcion: "Sueldos administración y comerciales: prorrateo por ingresos (regla 'capacidad contributiva')"
+    aplica_cuando:
+      cuenta: [71200, 71300]
+    metodo: prorrateo_global_por_ingresos
+    responsable_decision: "CFO + Pablo"
+    notas_año: "Mantenemos criterio histórico de ingresos. Discutido: alternativa por headcount asignado pero no tenemos esa info granular."
+
+  # ---------------------------------------------------------------------------
+  # LOGÍSTICA
+  # ---------------------------------------------------------------------------
+  - id: GTO-SEG-040
+    descripcion: "Fletes nacionales: prorrateo por ventas nacionales segmentadas"
+    aplica_cuando:
+      cuenta: [63100]
+    metodo: prorrateo_global_por_ventas_nacionales
+
+  - id: GTO-SEG-041
+    descripcion: "Fletes exportación: prorrateo por ventas de exportación segmentadas"
+    aplica_cuando:
+      cuenta: [63200]
+    metodo: prorrateo_global_por_ventas_export
+    flag_pt: gasto_relacionado_export
+
+  - id: GTO-SEG-042
+    descripcion: "Almacenaje: prorrateo por ventas totales"
+    aplica_cuando:
+      cuenta: [63300]
+    metodo: prorrateo_global_por_ingresos
+
+  # ---------------------------------------------------------------------------
+  # COMERCIALES
+  # ---------------------------------------------------------------------------
+  - id: GTO-SEG-050
+    descripcion: "Marketing y publicidad: prorrateo por ingresos del segmento"
+    aplica_cuando:
+      tipo_gasto: ["comercial"]
+    metodo: prorrateo_global_por_ingresos
+
+  # ---------------------------------------------------------------------------
+  # SERVICIOS DE CASA MATRIZ - CRÍTICOS PARA PT
+  # ---------------------------------------------------------------------------
+  - id: GTO-SEG-060
+    descripcion: "Royalties casa matriz: prorrateo por ingresos (criterio: royalty es % de ventas)"
+    aplica_cuando:
+      cuenta: [73200]
+    metodo: prorrateo_global_por_ingresos
+    flag_pt: pago_a_vinculada
+    sustento_normativo: "Royalty calculado como % sobre ventas según contrato marco"
+    notas_año: "PT 2025: validar que tasa efectiva de royalty (royalty / ventas) sea consistente con comparables. Estudio FOCO trabajando en informe."
+
+  - id: GTO-SEG-061
+    descripcion: "Management fees casa matriz: prorrateo por ingresos"
+    aplica_cuando:
+      cuenta: [73300]
+    metodo: prorrateo_global_por_ingresos
+    flag_pt: pago_a_vinculada
+    notas_año: "PT 2025: Aplicar test de beneficio. Documentar qué servicios efectivamente se recibieron de casa matriz."
+
+  - id: GTO-SEG-062
+    descripcion: "Servicios IT casa matriz: prorrateo por empleados"
+    aplica_cuando:
+      cuenta: [73400]
+    metodo: prorrateo_global_por_empleados
+    flag_pt: pago_a_vinculada
+    nota: "IT corporativo se asume consumido proporcional a headcount usuario"
+
+  # ---------------------------------------------------------------------------
+  # ESTRUCTURA / NO ASIGNABLES DIRECTOS
+  # ---------------------------------------------------------------------------
+  - id: GTO-SEG-070
+    descripcion: "Alquileres, servicios oficinas, amortización edificios admin: prorrateo por ingresos"
+    aplica_cuando:
+      cuenta: [72100, 72200, 75200]
+    metodo: prorrateo_global_por_ingresos
+
+  - id: GTO-SEG-080
+    descripcion: "Honorarios profesionales: prorrateo por ingresos"
+    aplica_cuando:
+      cuenta: [73100]
+    metodo: prorrateo_global_por_ingresos
+
+  - id: GTO-SEG-090
+    descripcion: "Intereses y diferencias de cambio: prorrateo por ventas (financiero del giro)"
+    aplica_cuando:
+      tipo_gasto: ["financiero"]
+    metodo: prorrateo_global_por_ingresos
+    nota: "Discutible si debería asignarse por activos en lugar de ingresos. Para PT alcanza con ingresos."
+
+  - id: GTO-SEG-099
+    descripcion: "REGLA RESIDUAL: cualquier gasto no clasificado, prorrateo por ingresos"
+    aplica_cuando: {}
+    metodo: prorrateo_global_por_ingresos
+    notas_año: "Captura todo lo que no matcheó. Revisar cuáles cayeron acá al cierre."
+
+# =============================================================================
+# OPERACIONES CON PARTES VINCULADAS (TRACKING PT)
+# =============================================================================
+# Estas no afectan asignación, solo marcan transacciones para reporte PT.
+operaciones_vinculadas:
+  - tipo: "Exportación a casa matriz / vinculadas"
+    aplica_cuando_venta:
+      es_a_vinculada: true
+    flag: "venta_exportacion_vinculada"
+    sustento_normativo: "Art. 15 LIG - operaciones con partes vinculadas del exterior"
+
+  - tipo: "Importación de CKDs y partes de casa matriz / vinculadas"
+    aplica_cuando_gasto:
+      es_a_vinculada: true
+      tipo_gasto: ["MP_importada"]
+    flag: "compra_importacion_vinculada"
+
+  - tipo: "Pagos por servicios al exterior a vinculadas"
+    aplica_cuando_gasto:
+      es_a_vinculada: true
+      tipo_gasto: ["servicios_ext"]
+    flag: "servicios_intragrupo"
