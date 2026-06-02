@@ -1,5 +1,5 @@
 """
-Emite facturas MAMA desde Supabase via Playwright headless.
+Emite facturas PAPA desde Supabase via Playwright headless.
 Corre en GitHub Actions.
 
 Env vars requeridas:
@@ -12,6 +12,7 @@ Args opcionales:
 
 import os
 import re
+import sys
 import random
 import argparse
 from datetime import datetime, timezone
@@ -26,6 +27,16 @@ SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 FAST_HUMAN   = True
 PDF_DIR      = "/tmp/pdfs"
+
+_sb = None
+
+def log_progreso(msg: str):
+    print(msg)
+    if _sb:
+        try:
+            _sb.table("workflow_log").insert({"mensaje": msg}).execute()
+        except Exception:
+            pass
 
 # ========= Args =========
 parser = argparse.ArgumentParser()
@@ -55,6 +66,17 @@ def fast_fill(locator, value: str, page=None, timeout=60000):
     locator.fill(value)
     if page: page.wait_for_timeout(human_pause())
 
+def goto_con_retry(page, url: str, intentos=3, timeout=90000):
+    for i in range(1, intentos + 1):
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+            return
+        except PlaywrightTimeoutError:
+            if i == intentos:
+                raise
+            print(f"⚠️  Timeout cargando {url} (intento {i}/{intentos}), reintentando...")
+            page.wait_for_timeout(3000)
+
 def fmt_fecha(date_str: str) -> str:
     """YYYY-MM-DD → DD/MM/YYYY"""
     if not date_str: return ""
@@ -66,7 +88,6 @@ def obtener_facturas(sb) -> list[dict]:
         resp = sb.table("facturas").select("*").in_("id", IDS_FORZADOS).eq("tipo", TIPO).execute()
     else:
         mes = datetime.now().strftime("%Y-%m")
-        # Filtrar por mes actual y no emitidas
         resp = (sb.table("facturas").select("*")
                   .eq("tipo", TIPO)
                   .eq("emitida", False)
@@ -184,15 +205,22 @@ def abrir_comprobantes_en_linea(page1, contribuyente_btn_text: str):
     return page2
 
 def run(playwright: Playwright) -> None:
+    global _sb
     CUIT  = os.environ["ARCA_CUIT_MAMA"]
     CLAVE = os.environ["ARCA_CLAVE_MAMA"]
     sb    = create_client(SUPABASE_URL, SUPABASE_KEY)
+    _sb   = sb
+    try:
+        sb.table("workflow_log").delete().neq("id", 0).execute()
+    except Exception:
+        pass
 
     facturas = obtener_facturas(sb)
     if not facturas:
-        print(f"✅ No hay facturas {TIPO} pendientes para emitir.")
+        log_progreso(f"✅ No hay facturas {TIPO} pendientes para emitir.")
         return
-    print(f"📋 {len(facturas)} facturas {TIPO} a emitir.")
+    total = len(facturas)
+    log_progreso(f"📋 {total} factura{'s' if total != 1 else ''} {TIPO} para emitir")
 
     os.makedirs(PDF_DIR, exist_ok=True)
 
@@ -208,8 +236,8 @@ def run(playwright: Playwright) -> None:
     )
     page = context.new_page()
 
-    # Login
-    page.goto("https://www.arca.gob.ar/landing/default.asp", wait_until="domcontentloaded")
+    log_progreso("🔐 Ingresando a ARCA...")
+    goto_con_retry(page, "https://www.arca.gob.ar/landing/default.asp")
     safe_wait(page)
     with page.expect_popup() as page1_info:
         safe_click(page.get_by_role("link", name="Iniciar sesión"), page=page)
@@ -236,12 +264,12 @@ def run(playwright: Playwright) -> None:
         page1.get_by_role("combobox", name="Buscador").wait_for(state="visible", timeout=180000)
     except Exception:
         page1.get_by_role("combobox").first.wait_for(state="visible", timeout=180000)
-    print("✅ Login exitoso")
+    log_progreso("✅ Login exitoso en ARCA")
 
     page2 = None
     current_contribuyente = None
 
-    for f in facturas:
+    for idx, f in enumerate(facturas, 1):
         fid               = f["id"]
         contribuyente_btn = (f.get("contribuyente_btn") or "").strip()
         doc_receptor      = (f.get("doc_receptor") or "").strip()
@@ -249,7 +277,7 @@ def run(playwright: Playwright) -> None:
         precio            = str(f.get("precio") or "").strip()
 
         if not contribuyente_btn or not doc_receptor or not detalle or not precio:
-            print(f"⚠️  ID {fid}: faltan datos, se saltea.")
+            log_progreso(f"⚠️  [{idx}/{total}] ID {fid}: faltan datos, se saltea.")
             continue
 
         pto_vta      = str(f.get("pto_vta")      or "1")
@@ -262,7 +290,7 @@ def run(playwright: Playwright) -> None:
         hasta        = fmt_fecha(f.get("hasta")      or "")
         vto_pago     = fmt_fecha(f.get("vto_pago")   or "")
 
-        print(f"\n➡️  ID {fid} | {contribuyente_btn} | {doc_receptor} | ${precio} | {fecha_cbte}")
+        log_progreso(f"➡️  [{idx}/{total}] {doc_receptor} | ${precio} | {fecha_cbte}")
 
         if contribuyente_btn != current_contribuyente:
             if page2:
@@ -313,7 +341,6 @@ def run(playwright: Playwright) -> None:
         safe_click(page2.get_by_role("button", name="Continuar >"), page=page2)
 
         # Confirmación manual si corre localmente, automática en GitHub Actions
-        import sys
         if sys.stdin.isatty():
             print(f"\n{'='*55}")
             print(f"  Revisá el browser — factura lista para emitir:")
@@ -327,26 +354,27 @@ def run(playwright: Playwright) -> None:
                 page2 = abrir_comprobantes_en_linea(page1, current_contribuyente)
                 continue
 
-        print("   🖱️  Confirmando...")
+        log_progreso(f"   🖱️  Confirmando [{idx}/{total}]...")
         confirmar_y_emitir(page2)
         wait_comprobante_generado(page2, timeout=180000)
-        print(f"✅ ID {fid}: comprobante generado")
+        log_progreso(f"✅ [{idx}/{total}] Comprobante generado (ID {fid})")
 
         marcar_emitida(sb, fid)
 
         # Descargar PDF
         raw_fecha   = f.get("fecha_cbte") or ""
         periodo     = datetime.strptime(raw_fecha, "%Y-%m-%d").strftime("%m-%Y") if raw_fecha else "00-0000"
-        cuit_emisor = re.sub(r"[^0-9]", "", CUIT)
+        cuit_emisor = "20043843452"
         cuit_recep  = re.sub(r"[^0-9]", "", doc_receptor)
         pdf_path    = os.path.join(PDF_DIR, f"Factura-{cuit_emisor}-{cuit_recep}-{periodo}.pdf")
         click_imprimir_y_guardar(page2, context, pdf_path)
+        log_progreso(f"📄 [{idx}/{total}] PDF guardado")
 
         try: page2.close()
         except: pass
         page2 = abrir_comprobantes_en_linea(page1, current_contribuyente)
 
-    print(f"\n🎉 Proceso terminado ({TIPO})")
+    log_progreso(f"🎉 Proceso terminado ({TIPO})")
 
 with sync_playwright() as playwright:
     run(playwright)
