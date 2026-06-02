@@ -310,6 +310,7 @@ def run(playwright: Playwright) -> None:
         safe_click(page2.get_by_role("button", name="Continuar >"), page=page2)
 
         fast_fill(page2.get_by_role("textbox", name="Fecha del Comprobante"), fecha_cbte, page=page2)
+        page2.locator("#idconcepto").wait_for(state="visible", timeout=60000)
         page2.locator("#idconcepto").select_option(concepto)
         safe_wait(page2)
         fast_fill(page2.get_by_role("textbox", name="Desde"),           desde,    page=page2)
@@ -317,6 +318,7 @@ def run(playwright: Playwright) -> None:
         fast_fill(page2.get_by_role("textbox", name="Vto. para el Pago"), vto_pago, page=page2)
         safe_click(page2.get_by_role("button", name="Continuar >"), page=page2)
 
+        page2.locator("#idivareceptor").wait_for(state="visible", timeout=60000)
         page2.locator("#idivareceptor").select_option(iva_receptor)
         safe_wait(page2)
         nro = page2.locator("#nrodocreceptor")
