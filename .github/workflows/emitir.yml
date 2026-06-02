@@ -74,3 +74,12 @@ jobs:
           GMAIL_USER:         ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: python scripts/send_email.py
+
+      - name: Subir screenshots de debug
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-debug
+          path: /tmp/screenshots/
+          if-no-files-found: ignore
+          retention-days: 3

@@ -66,6 +66,17 @@ def fast_fill(locator, value: str, page=None, timeout=60000):
     locator.fill(value)
     if page: page.wait_for_timeout(human_pause())
 
+SCREENSHOT_DIR = "/tmp/screenshots"
+
+def debug_screenshot(page, nombre: str):
+    try:
+        os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+        path = os.path.join(SCREENSHOT_DIR, f"{nombre}.png")
+        page.screenshot(path=path, full_page=True)
+        print(f"📸 Screenshot: {path}  |  URL: {page.url}")
+    except Exception as e:
+        print(f"⚠️  No se pudo tomar screenshot: {e}")
+
 def goto_con_retry(page, url: str, intentos=3, timeout=90000):
     for i in range(1, intentos + 1):
         try:
@@ -318,7 +329,11 @@ def run(playwright: Playwright) -> None:
         fast_fill(page2.get_by_role("textbox", name="Vto. para el Pago"), vto_pago, page=page2)
         safe_click(page2.get_by_role("button", name="Continuar >"), page=page2)
 
-        page2.locator("#idivareceptor").wait_for(state="visible", timeout=60000)
+        try:
+            page2.locator("#idivareceptor").wait_for(state="visible", timeout=60000)
+        except PlaywrightTimeoutError:
+            debug_screenshot(page2, f"fallo_idivareceptor_{fid}")
+            raise
         page2.locator("#idivareceptor").select_option(iva_receptor)
         safe_wait(page2)
         nro = page2.locator("#nrodocreceptor")
