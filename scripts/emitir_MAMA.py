@@ -13,6 +13,7 @@ Args opcionales:
 import os
 import re
 import sys
+import json
 import random
 import argparse
 from datetime import datetime, timezone
@@ -23,12 +24,31 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 # ========= Config =========
 TIPO         = "MAMA"
+RAZON_SOCIAL = "WAINSTEIN, ANA"
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 FAST_HUMAN   = True
 PDF_DIR      = "/tmp/pdfs"
+EMITIDAS_JSON = "/tmp/facturas_emitidas.json"
 
 _sb = None
+
+def registrar_emitida_para_email(doc_receptor: str, precio: str, fecha_cbte: str):
+    registros = []
+    if os.path.exists(EMITIDAS_JSON):
+        try:
+            with open(EMITIDAS_JSON, "r", encoding="utf-8") as f:
+                registros = json.load(f)
+        except Exception:
+            registros = []
+    registros.append({
+        "razon_social": RAZON_SOCIAL,
+        "doc_receptor": doc_receptor,
+        "precio": precio,
+        "fecha_cbte": fecha_cbte,
+    })
+    with open(EMITIDAS_JSON, "w", encoding="utf-8") as f:
+        json.dump(registros, f, ensure_ascii=False, indent=2)
 
 def log_progreso(msg: str):
     print(msg)
@@ -376,6 +396,7 @@ def run(playwright: Playwright) -> None:
         log_progreso(f"✅ [{idx}/{total}] Comprobante generado (ID {fid})")
 
         marcar_emitida(sb, fid)
+        registrar_emitida_para_email(doc_receptor, precio, fecha_cbte)
 
         # Descargar PDF
         raw_fecha   = f.get("fecha_cbte") or ""

@@ -11,13 +11,15 @@ Env vars en Railway:
 
 import os
 import calendar
+import subprocess
+import tempfile
 from datetime import date
 
 NOMBRES_MES_ES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
                   "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 import httpx
-from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, Request, UploadFile, File
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 SUPABASE_URL      = os.environ["SUPABASE_URL"]
@@ -36,6 +38,34 @@ app.mount("/static", StaticFiles(directory=STATIC), name="static")
 @app.get("/")
 def root():
     return FileResponse(os.path.join(STATIC, "index.html"))
+
+
+@app.post("/api/convert-docx")
+async def convert_docx(file: UploadFile = File(...)):
+    """Convierte un .docx a PDF usando LibreOffice headless."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Guardar el archivo recibido
+        safe_name = "documento.docx"
+        docx_path = os.path.join(tmpdir, safe_name)
+        with open(docx_path, "wb") as f:
+            f.write(await file.read())
+
+        # Convertir con LibreOffice
+        result = subprocess.run(
+            ["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", tmpdir, docx_path],
+            capture_output=True, text=True, timeout=60
+        )
+        if result.returncode != 0:
+            return JSONResponse(status_code=500, content={"error": result.stderr or "Conversión fallida"})
+
+        pdf_path = os.path.join(tmpdir, "documento.pdf")
+        if not os.path.exists(pdf_path):
+            return JSONResponse(status_code=500, content={"error": "No se generó el PDF"})
+
+        with open(pdf_path, "rb") as f:
+            pdf_bytes = f.read()
+
+    return Response(content=pdf_bytes, media_type="application/pdf")
 
 
 @app.post("/api/login")
@@ -108,6 +138,22 @@ async def update_factura(factura_id: int, request: Request):
     if resp.is_success:
         return {"ok": True}
     return JSONResponse(status_code=resp.status_code, content={"error": resp.text})
+
+
+@app.get("/api/workflow/progreso")
+async def workflow_progreso():
+    """Devuelve los mensajes de progreso del último run (tabla workflow_log en Supabase)."""
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(
+            f"{SUPABASE_URL}/rest/v1/workflow_log?select=mensaje,creado_at&order=creado_at.asc&limit=100",
+            headers={
+                "apikey":        SUPABASE_ANON_KEY,
+                "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+            },
+        )
+    if not resp.is_success:
+        return []
+    return resp.json()
 
 
 @app.get("/api/workflow/estado")

@@ -44,6 +44,21 @@ jobs:
           echo "SUPABASE_URL primeros 20 chars: ${SUPABASE_URL:0:20}"
           echo "SUPABASE_SERVICE_KEY set: ${{ secrets.SUPABASE_SERVICE_KEY != '' }}"
 
+      - name: Limpiar log anterior y avisar inicio
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          curl -s -X DELETE "$SUPABASE_URL/rest/v1/workflow_log?id=gte.0" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" > /dev/null
+          curl -s -X POST "$SUPABASE_URL/rest/v1/workflow_log" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d '{"mensaje": "🚀 Preparando entorno (instalando dependencias, ~1-2 min)..."}' > /dev/null
+
       - name: Instalar dependencias
         run: |
           pip install -r requirements-playwright.txt

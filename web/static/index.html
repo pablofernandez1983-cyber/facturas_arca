@@ -595,12 +595,24 @@ async function confirmar() {
 // ─── Polling del workflow ─────────────────────────────────────────────────
 function iniciarPolling(desdModal = false) {
   if (polTimer) clearInterval(polTimer);
-  polTimer = setInterval(() => pollWorkflow(desdModal), 5000);
+  polTimer = setInterval(() => pollWorkflow(desdModal), 3000);
 }
 
 async function pollWorkflow(desdeModal) {
-  const est = await fetch("/api/workflow/estado").then(r=>r.json()).catch(()=>null);
+  const [est, logs] = await Promise.all([
+    fetch("/api/workflow/estado").then(r=>r.json()).catch(()=>null),
+    fetch("/api/workflow/progreso").then(r=>r.json()).catch(()=>[]),
+  ]);
   if (!est) return;
+
+  // Actualizar log en modal si está abierto
+  const lg = document.getElementById("lg");
+  if (lg && Array.isArray(logs) && logs.length) {
+    lg.textContent = logs.map(l => l.mensaje).join("\n");
+    lg.scrollTop = lg.scrollHeight;
+  }
+
+  const ultimoMsg = Array.isArray(logs) && logs.length ? logs[logs.length - 1].mensaje : null;
 
   // Actualizar barra superior
   const bar = document.getElementById("wfBar");
@@ -629,7 +641,7 @@ async function pollWorkflow(desdeModal) {
   } else {
     bar.classList.add("running");
     spn.style.display = "";
-    msg.textContent = est.status === "in_progress" ? "⏳ Emitiendo facturas en ARCA..." : "⏳ Workflow en cola...";
+    msg.textContent = ultimoMsg || (est.status === "in_progress" ? "⏳ Emitiendo facturas en ARCA..." : "⏳ Workflow en cola...");
     lnk.href = est.url || "#";
   }
 }
