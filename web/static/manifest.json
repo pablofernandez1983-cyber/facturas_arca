@@ -7,9 +7,9 @@
   "theme_color": "#1a2744",
   "icons": [
     {
-      "src": "/static/logo.jpg",
+      "src": "/static/arcabot.png",
       "sizes": "512x512",
-      "type": "image/jpeg",
+      "type": "image/png",
       "purpose": "any"
     }
   ]
