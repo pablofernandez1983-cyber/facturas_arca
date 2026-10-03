@@ -6,7 +6,8 @@ Env vars en Railway:
     SUPABASE_URL
     SUPABASE_SERVICE_KEY   (service_role: la tabla facturas tiene RLS y no es accesible con la anon)
     GITHUB_PAT             (token con scope 'workflow')
-    GITHUB_REPO            pablofernandez1983-cyber/facturas_arca
+    RUNNER_REPO            repo privado donde corren los workflows (default pablofernandez1983-cyber/arca-runner)
+    RUNNER_TOKEN           secreto compartido con esos workflows (/runner/*)
     APP_PIN                (obligatorio: todas las rutas /api/* exigen el header X-App-Pin)
     + las de web/hechizo.py (Tienda Nube y runner de Hechizo)
 """
@@ -30,9 +31,12 @@ from fastapi.staticfiles import StaticFiles
 SUPABASE_URL      = os.environ["SUPABASE_URL"]
 SUPABASE_KEY      = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ["SUPABASE_ANON_KEY"]
 GITHUB_PAT        = os.environ["GITHUB_PAT"]
-GITHUB_REPO       = os.environ.get("GITHUB_REPO", "pablofernandez1983-cyber/facturas_arca")
 APP_PIN           = os.environ.get("APP_PIN", "")
-WORKFLOW_FILE     = "emitir.yml"
+# La emisión corre en el repo PRIVADO (facturas_arca es público y los logs de Actions mostraban
+# CUIT e importe de cada inquilino). Ya no se usa la env var GITHUB_REPO.
+RUNNER_REPO       = os.environ.get("RUNNER_REPO", "pablofernandez1983-cyber/arca-runner")
+RUNNER_TOKEN      = os.environ.get("RUNNER_TOKEN", "")
+WORKFLOW_FILE     = "alquiler.yml"
 
 app = FastAPI()
 
@@ -166,7 +170,7 @@ async def emitir(request: Request):
 
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(
-            f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{WORKFLOW_FILE}/dispatches",
+            f"https://api.github.com/repos/{RUNNER_REPO}/actions/workflows/{WORKFLOW_FILE}/dispatches",
             json=payload,
             headers=headers,
         )
@@ -221,7 +225,7 @@ async def workflow_estado():
     }
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(
-            f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{WORKFLOW_FILE}/runs?per_page=1",
+            f"https://api.github.com/repos/{RUNNER_REPO}/actions/workflows/{WORKFLOW_FILE}/runs?per_page=1",
             headers=headers,
         )
     if not resp.is_success:
@@ -320,6 +324,77 @@ async def copiar_mes(request: Request):
             return JSONResponse(status_code=ins.status_code, content={"error": ins.text})
 
     return {"ok": True, "copiadas": len(nuevas), "mes_origen": mes_origen, "mes_destino": mes_destino}
+
+
+# ─────────────────────────────────────────────
+# Runner de alquileres (arca-runner/scripts/app_alquiler.py) — token propio, no el PIN
+# ─────────────────────────────────────────────
+def _runner_ok(request: Request) -> bool:
+    tok = request.headers.get("X-Runner-Token", "")
+    return bool(RUNNER_TOKEN) and hmac.compare_digest(tok.encode(), RUNNER_TOKEN.encode())
+
+
+@app.post("/runner/alquiler/inicio")
+async def runner_alquiler_inicio(request: Request):
+    if not _runner_ok(request):
+        return JSONResponse(status_code=401, content={"error": "token"})
+    async with httpx.AsyncClient(timeout=15) as client:
+        await client.delete(f"{SUPABASE_URL}/rest/v1/workflow_log?id=gte.0", headers=_sb_headers())
+        await client.post(f"{SUPABASE_URL}/rest/v1/workflow_log",
+                          json={"mensaje": "🚀 Preparando entorno (instalando dependencias, ~1-2 min)..."},
+                          headers=_sb_headers({"Content-Type": "application/json", "Prefer": "return=minimal"}))
+    return {"ok": True}
+
+
+@app.post("/runner/alquiler/log")
+async def runner_alquiler_log(request: Request):
+    if not _runner_ok(request):
+        return JSONResponse(status_code=401, content={"error": "token"})
+    body = await request.json()
+    async with httpx.AsyncClient(timeout=15) as client:
+        await client.post(f"{SUPABASE_URL}/rest/v1/workflow_log", json={"mensaje": str(body.get("mensaje", ""))[:500]},
+                          headers=_sb_headers({"Content-Type": "application/json", "Prefer": "return=minimal"}))
+    return {"ok": True}
+
+
+@app.post("/runner/alquiler/facturas")
+async def runner_alquiler_facturas(request: Request):
+    """Las facturas a emitir: los ids pedidos desde la app, o si no hay, las pendientes del mes."""
+    if not _runner_ok(request):
+        return JSONResponse(status_code=401, content={"error": "token"})
+    body = await request.json()
+    tipo = body.get("tipo")
+    if tipo not in ("MAMA", "PAPA"):
+        return JSONResponse(status_code=400, content={"error": "tipo inválido"})
+    ids = [int(i) for i in body.get("ids") or []]
+    if ids:
+        filtro = f"id=in.({','.join(map(str, ids))})&tipo=eq.{tipo}"
+    else:
+        mes = str(body.get("mes", ""))
+        if not re.fullmatch(r"\d{4}-\d{2}", mes):
+            return JSONResponse(status_code=400, content={"error": "mes inválido"})
+        ultimo = calendar.monthrange(int(mes[:4]), int(mes[5:]))[1]
+        filtro = f"tipo=eq.{tipo}&emitida=eq.false&fecha_cbte=gte.{mes}-01&fecha_cbte=lte.{mes}-{ultimo:02d}"
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.get(f"{SUPABASE_URL}/rest/v1/facturas?select=*&{filtro}&order=id.asc", headers=_sb_headers())
+    if not r.is_success:
+        return JSONResponse(status_code=502, content={"error": r.text[:200]})
+    return {"facturas": r.json()}
+
+
+@app.post("/runner/alquiler/emitida")
+async def runner_alquiler_emitida(request: Request):
+    if not _runner_ok(request):
+        return JSONResponse(status_code=401, content={"error": "token"})
+    body = await request.json()
+    from datetime import datetime, timezone
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.patch(f"{SUPABASE_URL}/rest/v1/facturas?id=eq.{int(body['id'])}",
+                               json={"emitida": True, "emitida_at": datetime.now(timezone.utc).isoformat()},
+                               headers=_sb_headers({"Content-Type": "application/json", "Prefer": "return=minimal"}))
+    if not r.is_success:
+        return JSONResponse(status_code=502, content={"error": r.text[:200]})
+    return {"ok": True}
 
 
 if __name__ == "__main__":
