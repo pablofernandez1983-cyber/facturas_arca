@@ -10,7 +10,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="AlquiBot">
 <meta name="theme-color" content="#1a2744">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg: #f0f2f5; --card: #fff; --primary: #1a56db; --success: #0e9f6e;
@@ -314,7 +313,7 @@ async function verificarPin() {
   btn.disabled = false;
 
   if (resp.ok) {
-    sessionStorage.setItem("auth", "ok");
+    sessionStorage.setItem("pin", input.value);
     document.getElementById("loginScreen").classList.add("oculto");
     err.textContent = "";
     input.classList.remove("error");
@@ -327,17 +326,29 @@ async function verificarPin() {
   }
 }
 
-if (sessionStorage.getItem("auth") === "ok") {
+// El servidor exige el PIN en cada llamada a /api/* (header X-App-Pin).
+// Se guarda solo en sessionStorage: al cerrar la app hay que volver a ponerlo.
+function mostrarLogin(msg) {
+  sessionStorage.removeItem("pin");
+  document.getElementById("loginScreen").classList.remove("oculto");
+  document.getElementById("loginError").textContent = msg || "";
+  document.getElementById("pinInput").focus();
+}
+
+async function api(path, opts = {}) {
+  const resp = await fetch(path, {
+    ...opts,
+    headers: { ...(opts.headers || {}), "X-App-Pin": sessionStorage.getItem("pin") || "" },
+  });
+  if (resp.status === 401) { mostrarLogin("Ingresá el PIN de nuevo"); throw new Error("PIN incorrecto"); }
+  return resp;
+}
+
+if (sessionStorage.getItem("pin")) {
   document.getElementById("loginScreen").classList.add("oculto");
 } else {
   document.getElementById("pinInput").focus();
 }
-
-// ─── Supabase ─────────────────────────────────────────────────────────────
-const SUPABASE_URL = "https://zqwkznlgbkofsrygqezk.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpxd2t6bmxnYmtvZnNyeWdxZXprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1MTAzMTAsImV4cCI6MjA5MTA4NjMxMH0.GNt-G_RUcxLYCpSqAKKI4KxNU87bBEQAJVCr88R2wQE";
-
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let todas = [], sel = new Set(), polTimer = null;
 
@@ -351,7 +362,7 @@ async function copiarMesAnterior() {
 
   if (!confirm(`¿Copiar facturas de ${origenNombre} a ${mesNombre}?\n\nLas facturas pendientes de ${mesNombre} se van a reemplazar con las de ${origenNombre}.\nLas ya emitidas no se tocan.`)) return;
 
-  const resp = await fetch("/api/copiar-mes", {
+  const resp = await api("/api/copiar-mes", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ mes_origen: mesOrigen, mes_destino: mes }),
@@ -377,7 +388,7 @@ function getMesSeleccionado() {
 }
 
 async function init() {
-  const { data } = await sb.from("facturas").select("fecha_cbte").order("fecha_cbte", { ascending: true });
+  const data = await api("/api/facturas/meses").then(r => r.json()).catch(() => []);
   _mesesDisponibles = [...new Set((data || []).map(r => (r.fecha_cbte || "").slice(0, 7)).filter(Boolean))];
 
   const ahora = new Date().toISOString().slice(0, 7);
@@ -435,11 +446,13 @@ async function cargar() {
   const [y, m] = mes.split("-");
   const desde = `${mes}-01`;
   const hasta = new Date(parseInt(y), parseInt(m), 0).toISOString().slice(0, 10); // último día real del mes
-  const { data, error } = await sb.from("facturas").select("*")
-    .gte("fecha_cbte", desde).lte("fecha_cbte", hasta)
-    .order("tipo").order("fecha_cbte");
+  let data = null, error = null;
+  try {
+    const r = await api(`/api/facturas?desde=${desde}&hasta=${hasta}`);
+    if (r.ok) data = await r.json(); else error = r.status;
+  } catch (e) { error = e; }
 
-  if (error) {
+  if (error || !Array.isArray(data)) {
     document.getElementById("contenido").innerHTML = '<div class="vacio">Error al cargar.</div>';
     return;
   }
@@ -574,7 +587,7 @@ async function confirmar() {
     <div class="ls r" id="ls">⏳ Enviando a GitHub Actions...</div>
     <div class="log" id="lg">Iniciando...</div>`;
 
-  const resp = await fetch("/api/emitir", {
+  const resp = await api("/api/emitir", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ ids, tipo }),
@@ -600,8 +613,8 @@ function iniciarPolling(desdModal = false) {
 
 async function pollWorkflow(desdeModal) {
   const [est, logs] = await Promise.all([
-    fetch("/api/workflow/estado").then(r=>r.json()).catch(()=>null),
-    fetch("/api/workflow/progreso").then(r=>r.json()).catch(()=>[]),
+    api("/api/workflow/estado").then(r=>r.json()).catch(()=>null),
+    api("/api/workflow/progreso").then(r=>r.json()).catch(()=>[]),
   ]);
   if (!est) return;
 
@@ -648,7 +661,7 @@ async function pollWorkflow(desdeModal) {
 
 async function verificarWorkflow() {
   // Al cargar, ver si hay un workflow reciente corriendo
-  const est = await fetch("/api/workflow/estado").then(r=>r.json()).catch(()=>null);
+  const est = await api("/api/workflow/estado").then(r=>r.json()).catch(()=>null);
   if (!est || est.status === "none" || est.status === "completed") return;
   iniciarPolling(false);
 }
@@ -691,7 +704,7 @@ async function guardarEdicion() {
     vto_pago:     document.getElementById("eVto").value    || null,
   };
 
-  const resp = await fetch(`/api/factura/${editId}`, {
+  const resp = await api(`/api/factura/${editId}`, {
     method: "PATCH",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify(body),
@@ -713,7 +726,7 @@ function esc(s) {
   return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
-if (sessionStorage.getItem("auth") === "ok") init();
+if (sessionStorage.getItem("pin")) init();
 </script>
 </body>
 </html>

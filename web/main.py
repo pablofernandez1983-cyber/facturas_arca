@@ -4,12 +4,16 @@ Lee facturas de Supabase, dispara GitHub Actions.
 
 Env vars en Railway:
     SUPABASE_URL
-    SUPABASE_ANON_KEY      (la publishable que ya tenés)
+    SUPABASE_SERVICE_KEY   (service_role: la tabla facturas tiene RLS y no es accesible con la anon)
     GITHUB_PAT             (token con scope 'workflow')
     GITHUB_REPO            pablofernandez1983-cyber/facturas_arca
+    APP_PIN                (obligatorio: todas las rutas /api/* exigen el header X-App-Pin)
 """
 
 import os
+import re
+import hmac
+import asyncio
 import calendar
 import subprocess
 import tempfile
@@ -23,16 +27,38 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 SUPABASE_URL      = os.environ["SUPABASE_URL"]
-SUPABASE_ANON_KEY = os.environ["SUPABASE_ANON_KEY"]
+SUPABASE_KEY      = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ["SUPABASE_ANON_KEY"]
 GITHUB_PAT        = os.environ["GITHUB_PAT"]
 GITHUB_REPO       = os.environ.get("GITHUB_REPO", "pablofernandez1983-cyber/facturas_arca")
-APP_PIN           = os.environ.get("APP_PIN", "4850")
+APP_PIN           = os.environ.get("APP_PIN", "")
 WORKFLOW_FILE     = "emitir.yml"
 
 app = FastAPI()
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+
+def _pin_ok(pin):
+    return bool(APP_PIN) and hmac.compare_digest(str(pin or "").encode(), APP_PIN.encode())
+
+
+@app.middleware("http")
+async def exigir_pin(request: Request, call_next):
+    """Todo /api/* exige el PIN en el header X-App-Pin (menos /api/login).
+    Antes el PIN solo se pedía en la pantalla: el servidor no lo verificaba."""
+    path = request.url.path
+    if path.startswith("/api/") and path != "/api/login" and request.method != "OPTIONS":
+        if not APP_PIN:
+            return JSONResponse(status_code=503, content={"error": "APP_PIN no configurado"})
+        if not _pin_ok(request.headers.get("X-App-Pin")):
+            await asyncio.sleep(0.5)
+            return JSONResponse(status_code=401, content={"error": "PIN incorrecto"})
+    return await call_next(request)
+
+
+def _sb_headers(extra=None):
+    return {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", **(extra or {})}
 
 
 @app.get("/")
@@ -71,9 +97,41 @@ async def convert_docx(file: UploadFile = File(...)):
 @app.post("/api/login")
 async def login(request: Request):
     body = await request.json()
-    if body.get("pin") == APP_PIN:
+    if _pin_ok(body.get("pin")):
         return {"ok": True}
+    await asyncio.sleep(0.5)
     return JSONResponse(status_code=401, content={"error": "Contraseña incorrecta"})
+
+
+_FECHA = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+@app.get("/api/facturas/meses")
+async def facturas_meses():
+    """Fechas de comprobante de todas las facturas (para armar los combos de año/mes)."""
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"{SUPABASE_URL}/rest/v1/facturas?select=fecha_cbte&order=fecha_cbte.asc",
+            headers=_sb_headers(),
+        )
+    if not resp.is_success:
+        return JSONResponse(status_code=resp.status_code, content={"error": resp.text})
+    return resp.json()
+
+
+@app.get("/api/facturas")
+async def facturas_del_mes(desde: str, hasta: str):
+    if not (_FECHA.match(desde) and _FECHA.match(hasta)):
+        return JSONResponse(status_code=400, content={"error": "fechas inválidas"})
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"{SUPABASE_URL}/rest/v1/facturas?select=*&fecha_cbte=gte.{desde}&fecha_cbte=lte.{hasta}"
+            f"&order=tipo.asc,fecha_cbte.asc",
+            headers=_sb_headers(),
+        )
+    if not resp.is_success:
+        return JSONResponse(status_code=resp.status_code, content={"error": resp.text})
+    return resp.json()
 
 
 @app.post("/api/emitir")
@@ -128,12 +186,7 @@ async def update_factura(factura_id: int, request: Request):
         resp = await client.patch(
             f"{SUPABASE_URL}/rest/v1/facturas?id=eq.{factura_id}",
             json=update_data,
-            headers={
-                "apikey":          SUPABASE_ANON_KEY,
-                "Authorization":   f"Bearer {SUPABASE_ANON_KEY}",
-                "Content-Type":    "application/json",
-                "Prefer":          "return=minimal",
-            },
+            headers=_sb_headers({"Content-Type": "application/json", "Prefer": "return=minimal"}),
         )
     if resp.is_success:
         return {"ok": True}
@@ -146,10 +199,7 @@ async def workflow_progreso():
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(
             f"{SUPABASE_URL}/rest/v1/workflow_log?select=mensaje,creado_at&order=creado_at.asc&limit=100",
-            headers={
-                "apikey":        SUPABASE_ANON_KEY,
-                "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
-            },
+            headers=_sb_headers(),
         )
     if not resp.is_success:
         return []
@@ -212,11 +262,7 @@ async def copiar_mes(request: Request):
     primer_dia_str = f"{anio_d}-{mes_d:02d}-01"
     ultimo_dia_str = f"{anio_d}-{mes_d:02d}-{ultimo_dia:02d}"
 
-    headers = {
-        "apikey":        SUPABASE_ANON_KEY,
-        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
-        "Content-Type":  "application/json",
-    }
+    headers = _sb_headers({"Content-Type": "application/json"})
 
     async with httpx.AsyncClient(timeout=15) as client:
         # Borrar facturas NO emitidas del mes destino (las emitidas no se tocan)
