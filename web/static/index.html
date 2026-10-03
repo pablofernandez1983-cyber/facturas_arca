@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>AlquiBot ARCA</title>
+<title>ARCABot</title>
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/logo.jpg">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="AlquiBot">
+<meta name="apple-mobile-web-app-title" content="ARCABot">
 <meta name="theme-color" content="#1a2744">
 <style>
   :root {
@@ -185,6 +185,70 @@
               font-weight: 600; cursor: pointer; white-space: normal;
               line-height: 1.3; text-align: center; max-width: 72px; }
   .btn-copy:active { opacity: .75; }
+
+  /* ─── Inicio (lanzador) ─── */
+  .vista { display: none; }
+  .vista.on { display: block; }
+  .home { min-height: 100vh; padding: 28px 18px 40px; background:
+          radial-gradient(circle at 20% 0%, #dbeafe 0, transparent 55%),
+          radial-gradient(circle at 100% 100%, #fce7f3 0, transparent 50%), var(--bg); }
+  .home-logo { display: block; width: min(56vw, 230px); margin: 0 auto; border-radius: 50%; }
+  .alq-tabs { display: flex; gap: 4px; margin: 12px 16px 0; background: #e2e6ee; border-radius: 12px; padding: 4px; }
+  .alq-tabs button { flex: 1; border: none; background: none; padding: 9px; border-radius: 9px;
+                     font-size: 14px; font-weight: 700; color: var(--sub); cursor: pointer; }
+  .alq-tabs button.on { background: #fff; color: var(--primary); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .home h1 { font-size: 26px; font-weight: 900; letter-spacing: -.02em; color: #1a2744; text-align: center; }
+  .home .sub { text-align: center; color: var(--sub); font-size: 14px; margin: 4px 0 26px; }
+  .apps { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 460px; margin: 0 auto; }
+  .app { background: var(--card); border-radius: 22px; padding: 16px 12px 14px; text-align: center;
+         box-shadow: 0 6px 24px rgba(26,39,68,.08); cursor: pointer; border: none; font: inherit;
+         color: inherit; display: flex; flex-direction: column; align-items: center; gap: 10px;
+         transition: transform .15s; }
+  .app:active { transform: scale(.97); }
+  .app img { width: 100%; max-width: 150px; aspect-ratio: 1; object-fit: contain; border-radius: 50%; }
+  .app b { font-size: 15px; }
+  .app small { font-size: 12px; color: var(--sub); margin-top: -6px; }
+  .app.prox { cursor: default; opacity: .6; }
+  .app .ph { width: 100%; max-width: 150px; aspect-ratio: 1; border-radius: 50%;
+             border: 3px dashed var(--border); display: flex; align-items: center; justify-content: center;
+             font-size: 13px; font-weight: 700; color: var(--sub); flex-shrink: 0; }
+  .app.ancha { grid-column: 1 / -1; flex-direction: row; text-align: left; padding: 14px 18px; }
+  .app.ancha img, .app.ancha .ph { max-width: 84px; width: 84px; }
+  .app.ancha small { margin-top: 2px; }
+  .btn-home { background: rgba(255,255,255,.2); border: none; color: inherit; font-size: 22px;
+              width: 36px; height: 36px; border-radius: 10px; cursor: pointer; flex-shrink: 0; }
+
+  /* ─── Hechizo ─── */
+  #vHz { --hz: #b0607e; --hz-bg: #fbf3f6; --hz-soft: #f6dde7; --hz-ink: #4a4a4a;
+         background: var(--hz-bg); min-height: 100vh; }
+  .hz-head { background: var(--hz-soft); color: var(--hz-ink); padding: 10px 14px 14px;
+             position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 10px; }
+  .hz-head .btn-home { background: rgba(255,255,255,.6); }
+  .hz-head img { height: 64px; width: 64px; border-radius: 50%; }
+  .hz-head h1 { font-size: 16px; font-weight: 800; flex: 1; line-height: 1.2; }
+  .hz-per { display: flex; background: #fff; border-radius: 10px; padding: 3px; gap: 2px; }
+  .hz-per button { border: none; background: none; padding: 7px 10px; border-radius: 8px; font-size: 12px;
+                   font-weight: 700; color: var(--hz-ink); cursor: pointer; }
+  .hz-per button.on { background: var(--hz); color: #fff; }
+  .hz-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 14px 16px 0; }
+  .hz-card { background: #fff; border-radius: 12px; padding: 9px 12px; border-left: 4px solid #9e9e9e; }
+  .hz-card .t { font-size: 10px; font-weight: 800; letter-spacing: .06em; color: #8a8a8a; text-transform: uppercase; }
+  .hz-card .v { font-size: 17px; font-weight: 800; margin-top: 1px; }
+  .hz-card .n { font-size: 11px; color: #8a8a8a; }
+  .hz-card.fac { border-color: #5c6bc0; } .hz-card.sel { border-color: var(--hz); }
+  .hz-card.ok  { border-color: #2e7d32; } .hz-card.ok .v { color: #2e7d32; }
+  .hz-card.mal { border-color: #c62828; background: #ffebee; } .hz-card.mal .v, .hz-card.mal .n { color: #c62828; }
+  .hz-bar { margin: 12px 16px 0; height: 12px; border-radius: 6px; background: #e6dfe2; overflow: hidden; display: flex; }
+  .hz-bar div { height: 100%; }
+  .hz-bar-txt { margin: 4px 18px 0; font-size: 12px; color: #666; }
+  .hz-bar-txt.mal { color: #c62828; font-weight: 700; }
+  .hz-nota { margin: 6px 18px 0; font-size: 12px; color: #999; font-style: italic; }
+  #vHz .sec-tit { color: var(--hz); }
+  #vHz .factura.sel { border-color: var(--hz); box-shadow: 0 0 0 3px rgba(176,96,126,.14); }
+  #vHz .sel .chk { background: var(--hz); border-color: var(--hz); }
+  #vHz .fp { color: var(--hz); }
+  #vHz .btn-selall { color: var(--hz); }
+  #vHz .btn-emit { background: var(--hz); }
 </style>
 </head>
 <body>
@@ -249,7 +313,9 @@
   </div>
 </div>
 
+<div class="vista" id="vAlq">
 <header>
+  <button class="btn-home" onclick="irA('')" title="Inicio">‹</button>
   <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;gap:4px">
     <img src="/static/logo.jpg" alt="AlquiBot ARCA"
          style="height:96px;border-radius:8px">
@@ -260,7 +326,17 @@
   <select id="selMesN" onchange="cargar()"></select>
 </header>
 
-<div class="scroll">
+<div class="alq-tabs">
+  <button id="tabFac" class="on" onclick="alqTab('fac')">Facturación</button>
+  <button id="tabIva" onclick="alqTab('iva')">IVA</button>
+</div>
+
+<div id="alqIva" style="display:none">
+  <div class="vacio">📋 La DDJJ de IVA desde el celu llega pronto.<br>
+    <small>Por ahora seguí usando el acceso directo de la PC.</small></div>
+</div>
+
+<div class="scroll" id="alqFac">
   <div class="chips">
     <div class="chip p" onclick="selAllPendientes()" title="Seleccionar todas las pendientes"><span id="cp">—</span>Pendientes</div>
     <div class="chip e"><span id="ce">—</span>Emitidas</div>
@@ -276,10 +352,62 @@
   <div id="contenido"></div>
 </div>
 
-<div class="barra">
+<div class="barra" id="alqBarra">
   <button class="btn-emit" id="btnEmit" disabled onclick="abrirModal()">
     Seleccioná facturas para emitir
   </button>
+</div>
+</div>
+
+<!-- ─── Inicio ─── -->
+<div class="vista" id="vHome">
+  <div class="home">
+    <img class="home-logo" src="/static/arcabot.png" alt="ARCABot" onerror="this.outerHTML='<h1>ARCABot</h1>'">
+    <div class="sub">¿Qué hacemos hoy?</div>
+    <div class="apps">
+      <button class="app" onclick="irA('alquileres')">
+        <img src="/static/logo.jpg" alt="AlquiBot">
+        <b>AlquiBot</b><small>Alquileres e IVA · Ana y Sucesión</small>
+      </button>
+      <button class="app" onclick="irA('hechizo')">
+        <img src="/static/hechizobot.png" onerror="this.onerror=null;this.src='/static/hechizo.png'" alt="HechizoBot">
+        <b>HechizoBot</b><small>Facturas de Tienda Nube</small>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Hechizo ─── -->
+<div class="vista" id="vHz">
+  <div class="hz-head">
+    <button class="btn-home" onclick="irA('')" title="Inicio">‹</button>
+    <img src="/static/hechizobot.png" onerror="this.onerror=null;this.src='/static/hechizo.png'" alt="HechizoBot">
+    <h1>HechizoBot</h1>
+    <div class="hz-per">
+      <button id="hzPerAct" onclick="hzPeriodo('actual')">Este mes</button>
+      <button id="hzPerAnt" onclick="hzPeriodo('anterior')">Mes ant.</button>
+    </div>
+  </div>
+  <div class="scroll">
+    <div class="wf-bar" id="hzBar">
+      <div class="spin" id="hzSpin"></div>
+      <span id="hzMsg">Facturando...</span>
+      <a id="hzLink" href="#" target="_blank" style="margin-left:auto;font-size:12px;color:inherit">ver ↗</a>
+    </div>
+    <div class="hz-cards">
+      <div class="hz-card"><div class="t">Límite del mes</div><div class="v" id="hzLim">—</div><div class="n" id="hzLimN"></div></div>
+      <div class="hz-card fac"><div class="t">Ya facturado</div><div class="v" id="hzFac">—</div><div class="n" id="hzFacN"></div></div>
+      <div class="hz-card sel"><div class="t">Esta selección</div><div class="v" id="hzSel">—</div><div class="n" id="hzSelN"></div></div>
+      <div class="hz-card ok" id="hzQuedanC"><div class="t">Te quedan</div><div class="v" id="hzQuedan">—</div><div class="n" id="hzQuedanN">después de esta selección</div></div>
+    </div>
+    <div class="hz-bar" id="hzBarra"></div>
+    <div class="hz-bar-txt" id="hzBarraTxt"></div>
+    <div class="hz-nota" id="hzNota"></div>
+    <div id="hzContenido"><div class="vacio">Cargando ventas de Tienda Nube...</div></div>
+  </div>
+  <div class="barra">
+    <button class="btn-emit" id="hzBtn" disabled onclick="hzAbrirModal()">Elegí órdenes para facturar</button>
+  </div>
 </div>
 
 <div class="overlay" id="overlay">
@@ -318,6 +446,7 @@ async function verificarPin() {
     err.textContent = "";
     input.classList.remove("error");
     init();
+    mostrarVista();
   } else {
     input.classList.add("error");
     err.textContent = resp.error || "Contraseña incorrecta";
@@ -729,6 +858,234 @@ function esc(s) {
 }
 
 if (pinGuardado()) init();
+
+// ─── Navegación entre secciones ──────────────────────────────────────────
+const VISTAS = { "": "vHome", "alquileres": "vAlq", "hechizo": "vHz" };
+function irA(seccion) {
+  if (seccion) location.hash = "#" + seccion;
+  else { history.replaceState(null, "", location.pathname); mostrarVista(); }
+}
+function mostrarVista() {
+  const sec = location.hash.replace("#", "");
+  const id = VISTAS[sec] || "vHome";
+  cerrarModal();
+  document.querySelectorAll(".vista").forEach(v => v.classList.toggle("on", v.id === id));
+  window.scrollTo(0, 0);
+  if (id === "vHz" && pinGuardado()) hzEntrar();
+}
+window.addEventListener("hashchange", mostrarVista);
+
+function alqTab(t) {
+  document.getElementById("tabFac").classList.toggle("on", t === "fac");
+  document.getElementById("tabIva").classList.toggle("on", t === "iva");
+  document.getElementById("alqFac").style.display = t === "fac" ? "" : "none";
+  document.getElementById("alqBarra").style.display = t === "fac" ? "" : "none";
+  document.getElementById("alqIva").style.display = t === "iva" ? "" : "none";
+}
+
+// ─── Hechizo ─────────────────────────────────────────────────────────────
+let hz = { periodo: "actual", data: null, sel: new Set(), timer: null };
+const pesos = v => "$ " + Number(v || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function hzEntrar() {
+  if (!hz.data) hzCargar();
+  hzVerificarWorkflow();
+}
+
+function hzPeriodo(p) { hz.periodo = p; hzCargar(); }
+
+async function hzCargar() {
+  document.getElementById("hzPerAct").classList.toggle("on", hz.periodo === "actual");
+  document.getElementById("hzPerAnt").classList.toggle("on", hz.periodo === "anterior");
+  document.getElementById("hzContenido").innerHTML = '<div class="vacio">Cargando ventas de Tienda Nube...</div>';
+  hz.sel.clear(); hz.data = null; hzActualizar();
+  const pedido = hz.pedido = (hz.pedido || 0) + 1;   // si cambian de mes a mitad de carga, gana el último pedido
+  let d;
+  try {
+    const r = await api(`/api/hechizo/ordenes?periodo=${hz.periodo}`);
+    d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.status);
+  } catch (e) {
+    if (pedido !== hz.pedido) return;
+    document.getElementById("hzContenido").innerHTML = `<div class="vacio">No pude cargar: ${esc(e.message)}</div>`;
+    return;
+  }
+  if (pedido !== hz.pedido) return;
+  hz.data = d;
+  d.pendientes.forEach(o => hz.sel.add(o.numero_orden));   // como en la PC: arranca todo marcado
+  hzRender();
+}
+
+function hzRender() {
+  const d = hz.data;
+  const [y, m] = d.periodo.split("-");
+  const mes = NOMBRES_MES[+m - 1];
+  document.getElementById("hzLim").textContent = pesos(d.limite_mensual);
+  document.getElementById("hzLimN").textContent = "Cat. B · " + d.limite_origen;
+  document.getElementById("hzFac").textContent = pesos(d.facturado_mes);
+  document.getElementById("hzFacN").textContent = "emitido en " + d.mes_actual.split("-").reverse().join("/");
+  document.getElementById("hzNota").textContent = d.ya_emitidas
+    ? `${d.ya_emitidas} ${d.ya_emitidas > 1 ? "órdenes" : "orden"} de ${mes.toLowerCase()} ya facturada${d.ya_emitidas > 1 ? "s" : ""} (${pesos(d.ya_emitidas_total)}) — no se muestran`
+    : "";
+
+  if (!d.pendientes.length) {
+    document.getElementById("hzContenido").innerHTML =
+      `<div class="vacio">No hay órdenes de ${mes} ${y} para facturar.<br>
+       <small>(MercadoPago, pagadas y enviadas/entregadas)</small></div>`;
+    hzActualizar(); return;
+  }
+  let h = `<div class="seccion"><div class="sec-tit-row">
+      <div class="sec-tit">${mes} ${y} · ${d.pendientes.length} sin facturar</div>
+      <button class="btn-selall" onclick="hzTodo()">Todo / nada</button></div>`;
+  d.pendientes.forEach(o => {
+    const k = o.numero_orden;
+    h += `<div class="factura ${hz.sel.has(k) ? "sel" : ""}" id="hz${k}" onclick="hzToggle('${k}')">
+      <div class="chk"><svg width="11" height="9" viewBox="0 0 12 10" fill="none">
+        <path d="M1 5l3.5 3.5L11 1" stroke="white" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+      <div class="fi">
+        <div class="ft"><span class="fr">#${esc(k)} · ${esc(o.comprador || "—")}</span><span class="fp">${pesos(o.monto)}</span></div>
+        <div class="fd-row"><span class="ff">${esc(o.fecha)}</span></div>
+      </div></div>`;
+  });
+  document.getElementById("hzContenido").innerHTML = h + "</div>";
+  hzActualizar();
+}
+
+function hzToggle(k) {
+  hz.sel.has(k) ? hz.sel.delete(k) : hz.sel.add(k);
+  document.getElementById("hz" + k)?.classList.toggle("sel");
+  hzActualizar();
+}
+
+function hzTodo() {
+  const todas = hz.data.pendientes.map(o => o.numero_orden);
+  const marcar = !todas.every(k => hz.sel.has(k));
+  todas.forEach(k => {
+    marcar ? hz.sel.add(k) : hz.sel.delete(k);
+    document.getElementById("hz" + k)?.classList.toggle("sel", marcar);
+  });
+  hzActualizar();
+}
+
+function hzElegidas() { return (hz.data?.pendientes || []).filter(o => hz.sel.has(o.numero_orden)); }
+
+function hzActualizar() {
+  const d = hz.data, eleg = hzElegidas();
+  const total = eleg.reduce((a, o) => a + parseFloat(o.monto), 0);
+  const btn = document.getElementById("hzBtn");
+  btn.disabled = !eleg.length || !!hz.timer;
+  btn.textContent = eleg.length ? `Facturar ${eleg.length} ${eleg.length > 1 ? "órdenes" : "orden"} · ${pesos(total)}` : "Elegí órdenes para facturar";
+  if (!d) return;
+  document.getElementById("hzSel").textContent = pesos(total);
+  document.getElementById("hzSelN").textContent = `${eleg.length} de ${d.pendientes.length} órdenes`;
+  const lim = d.limite_mensual, fac = d.facturado_mes, quedan = lim - fac - total;
+  const usado = lim ? (fac + total) / lim * 100 : 0;
+  document.getElementById("hzQuedanC").className = "hz-card " + (quedan >= 0 ? "ok" : "mal");
+  document.getElementById("hzQuedan").textContent = quedan >= 0 ? pesos(quedan) : "−" + pesos(-quedan);
+  document.getElementById("hzQuedanN").textContent = quedan >= 0 ? "después de esta selección" : "⚠ te pasás del límite";
+  const tope = Math.max(lim, fac + total, 1);
+  document.getElementById("hzBarra").innerHTML =
+    `<div style="width:${fac / tope * 100}%;background:#5c6bc0"></div>` +
+    `<div style="width:${total / tope * 100}%;background:${quedan < 0 ? "#e53935" : "#d48aa6"}"></div>`;
+  const t = document.getElementById("hzBarraTxt");
+  const pct = usado.toFixed(1).replace(".", ",");
+  t.className = "hz-bar-txt" + (quedan < 0 ? " mal" : "");
+  t.textContent = quedan < 0 ? `⚠ Te pasás por ${pesos(-quedan)} (${pct}% del límite)` : `Usás el ${pct}% del límite del mes`;
+}
+
+function hzAbrirModal() {
+  const eleg = hzElegidas(), d = hz.data;
+  const total = eleg.reduce((a, o) => a + parseFloat(o.monto), 0);
+  const quedan = d.limite_mensual - d.facturado_mes - total;
+  document.getElementById("mtit").textContent = `Facturar ${eleg.length} ${eleg.length > 1 ? "órdenes" : "orden"}`;
+  document.getElementById("mbody").innerHTML = `
+    <p style="font-size:13px;color:var(--sub);margin-bottom:12px">
+      El robot entra al Facturador de ARCA con la clave de Lore y emite una factura C por orden.</p>
+    <ul class="lista-m">${eleg.map(o => `<li><div><div class="lmr">#${esc(o.numero_orden)}</div>
+      <div class="lmd">${esc(o.comprador || "")}</div></div><div class="lmp" style="color:#b0607e">${pesos(o.monto)}</div></li>`).join("")}</ul>
+    <p style="text-align:right;font-weight:800;font-size:16px;margin-top:12px;color:#b0607e">Total: ${pesos(total)}</p>
+    ${quedan < 0 ? `<p style="margin-top:8px;color:#c62828;font-weight:700;font-size:13px">⚠ Con esto te pasás del límite de Cat. B por ${pesos(-quedan)}</p>` : ""}`;
+  document.getElementById("mfoot").innerHTML = `
+    <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
+    <button class="btn-ok" style="background:#b0607e" onclick="hzConfirmar()">Facturar ahora</button>`;
+  document.getElementById("overlay").classList.add("on");
+}
+
+async function hzConfirmar() {
+  const eleg = hzElegidas();
+  if (!confirm(`¿Emitir ${eleg.length} factura${eleg.length > 1 ? "s" : ""} de Hechizo en ARCA?\n\nNo se puede deshacer.`)) return;
+  document.getElementById("mfoot").innerHTML = "";
+  document.getElementById("mbody").innerHTML += `
+    <div class="ls r" id="hzls">⏳ Enviando al robot...</div>
+    <div class="log" id="hzlg">Iniciando...</div>`;
+  const resp = await api("/api/hechizo/emitir", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ periodo: hz.periodo, ordenes: eleg.map(o => o.numero_orden) }),
+  }).then(r => r.json()).catch(e => ({ error: e.message }));
+  if (resp.error) {
+    document.getElementById("hzls").className = "ls er";
+    document.getElementById("hzls").textContent = "❌ " + resp.error;
+    document.getElementById("mfoot").innerHTML = `<button class="btn-ok" style="flex:1" onclick="cerrarModal()">Cerrar</button>`;
+    return;
+  }
+  document.getElementById("hzls").textContent = `⏳ Robot en camino: ${resp.cantidad} factura${resp.cantidad > 1 ? "s" : ""} · ${pesos(resp.total)}`;
+  document.getElementById("hzlg").textContent = "GitHub Actions recibió el pedido.\nArranca en ~30 s...";
+  hz.sel.clear();
+  hz.desde = Date.now() - 30000;               // ignorar el run anterior hasta que aparezca el nuevo
+  hz.timer = -1; hzActualizar();               // bloquea el botón mientras corre
+  setTimeout(() => hzPolling(true), 5000);     // dar tiempo a que aparezca el run nuevo
+}
+
+function hzPolling(desdeModal) {
+  if (hz.timer && hz.timer !== -1) clearInterval(hz.timer);
+  hz.timer = setInterval(() => hzPoll(desdeModal), 3000);
+  hzActualizar();
+}
+
+async function hzPoll(desdeModal) {
+  const [est, logs] = await Promise.all([
+    api("/api/hechizo/estado").then(r => r.json()).catch(() => null),
+    api("/api/hechizo/progreso").then(r => r.json()).catch(() => []),
+  ]);
+  if (!est || est.status === "none") return;
+  if (desdeModal && hz.desde && new Date(est.started_at || 0).getTime() < hz.desde) return;
+  const lg = document.getElementById("hzlg");
+  if (lg && Array.isArray(logs) && logs.length) {
+    lg.textContent = logs.map(l => l.mensaje).join("\n");
+    lg.scrollTop = lg.scrollHeight;
+  }
+  const ultimo = Array.isArray(logs) && logs.length ? logs[logs.length - 1].mensaje : null;
+  const bar = document.getElementById("hzBar"), msg = document.getElementById("hzMsg");
+  bar.className = "wf-bar show";
+  document.getElementById("hzLink").href = est.url || "#";
+  if (est.status === "completed") {
+    clearInterval(hz.timer); hz.timer = null;
+    const ok = est.conclusion === "success";
+    bar.classList.add(ok ? "success" : "failure");
+    document.getElementById("hzSpin").style.display = "none";
+    msg.textContent = ok ? (ultimo || "✅ Listo") : "❌ Terminó con error — " + (ultimo || "revisá el detalle");
+    hzCargar();
+    const ls = document.getElementById("hzls");
+    if (desdeModal && ls) {
+      ls.className = ok ? "ls ok" : "ls er";
+      ls.textContent = ok ? "✅ Facturas emitidas" : "❌ Hubo un error — mirá el detalle de arriba";
+      document.getElementById("mfoot").innerHTML = `<button class="btn-ok" style="flex:1;background:#b0607e" onclick="cerrarModal()">Cerrar</button>`;
+    }
+  } else {
+    bar.classList.add("running");
+    document.getElementById("hzSpin").style.display = "";
+    msg.textContent = ultimo || (est.status === "in_progress" ? "⏳ Facturando en ARCA..." : "⏳ En cola...");
+  }
+}
+
+async function hzVerificarWorkflow() {
+  if (hz.timer) return;
+  const est = await api("/api/hechizo/estado").then(r => r.json()).catch(() => null);
+  if (!est || est.status === "none" || est.status === "completed") return;
+  hzPolling(false);
+}
+
+mostrarVista();
 </script>
 </body>
 </html>

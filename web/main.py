@@ -8,6 +8,7 @@ Env vars en Railway:
     GITHUB_PAT             (token con scope 'workflow')
     GITHUB_REPO            pablofernandez1983-cyber/facturas_arca
     APP_PIN                (obligatorio: todas las rutas /api/* exigen el header X-App-Pin)
+    + las de web/hechizo.py (Tienda Nube y runner de Hechizo)
 """
 
 import os
@@ -34,6 +35,9 @@ APP_PIN           = os.environ.get("APP_PIN", "")
 WORKFLOW_FILE     = "emitir.yml"
 
 app = FastAPI()
+
+from web.hechizo import router as hechizo_router
+app.include_router(hechizo_router)
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
