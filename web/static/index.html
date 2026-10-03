@@ -249,6 +249,40 @@
   #vHz .fp { color: var(--hz); }
   #vHz .btn-selall { color: var(--hz); }
   #vHz .btn-emit { background: var(--hz); }
+
+  /* ─── DDJJ IVA ─── */
+  .iva { padding: 12px 16px 120px; }
+  .iva-sel { display: flex; gap: 8px; align-items: center; }
+  .iva-sel select { border: 2px solid var(--border); border-radius: 10px; padding: 8px; font-size: 14px; background: #fff; }
+  .seg { display: flex; background: #e2e6ee; border-radius: 10px; padding: 3px; flex: 1; }
+  .seg button { flex: 1; border: none; background: none; padding: 8px 6px; border-radius: 8px; font-weight: 700;
+                font-size: 13px; color: var(--sub); cursor: pointer; }
+  .seg button.on { background: #fff; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .pasos { display: flex; gap: 6px; margin: 14px 0 12px; }
+  .pasos div { flex: 1; text-align: center; font-size: 11px; font-weight: 700; color: var(--sub);
+               padding: 8px 4px; border-radius: 10px; background: #fff; border: 2px solid var(--border); }
+  .pasos b { display: block; font-size: 16px; }
+  .pasos .hecho { border-color: var(--success); color: var(--success); background: #f0fdf4; }
+  .pasos .actual { border-color: var(--primary); color: var(--primary); }
+  .iva-card { background: #fff; border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; }
+  .iva-card h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--sub); margin-bottom: 8px; }
+  .iva-fila { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .iva-fila:last-child { border: none; }
+  .iva-fila b { font-size: 15px; }
+  .iva-fila.grande b { font-size: 20px; color: var(--primary); }
+  .iva-nota { font-size: 13px; padding: 10px 12px; border-radius: 10px; margin-bottom: 10px; line-height: 1.4; }
+  .iva-nota.ok { background: #f0fdf4; color: #065f46; }
+  .iva-nota.mal { background: #fef2f2; color: #991b1b; font-weight: 600; }
+  .iva-nota.info { background: #eff6ff; color: #1e3a8a; }
+  .iva-btn { width: 100%; padding: 15px; border: none; border-radius: var(--r); font-size: 16px; font-weight: 800;
+             color: #fff; background: var(--primary); cursor: pointer; margin-top: 4px; }
+  .iva-btn.peligro { background: #c2410c; } .iva-btn.final { background: #b91c1c; }
+  .iva-btn.sec { background: none; color: var(--primary); border: 2px solid var(--border); font-size: 14px; padding: 11px; }
+  .iva-btn:disabled { opacity: .45; }
+  .iva-arch { display: flex; flex-wrap: wrap; gap: 8px; }
+  .iva-arch button { border: 1px solid var(--border); background: #f8fafc; border-radius: 8px; padding: 7px 10px;
+                     font-size: 12px; font-weight: 600; cursor: pointer; }
+  .iva-chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 8px 0; }
 </style>
 </head>
 <body>
@@ -331,9 +365,21 @@
   <button id="tabIva" onclick="alqTab('iva')">IVA</button>
 </div>
 
-<div id="alqIva" style="display:none">
-  <div class="vacio">📋 La DDJJ de IVA desde el celu llega pronto.<br>
-    <small>Por ahora seguí usando el acceso directo de la PC.</small></div>
+<div id="alqIva" style="display:none" class="iva">
+  <div class="iva-sel">
+    <div class="seg" id="ivaContrib">
+      <button data-c="ANA" class="on" onclick="ivaContrib('ANA')">Ana</button>
+      <button data-c="SUC" onclick="ivaContrib('SUC')">Sucesión</button>
+    </div>
+    <select id="ivaMes" onchange="ivaCargar()"></select>
+    <select id="ivaAnio" onchange="ivaCargar()"></select>
+  </div>
+  <div class="pasos" id="ivaPasos">
+    <div data-p="1"><b>1</b>Revisar libro</div>
+    <div data-p="2"><b>2</b>Finalizar libro</div>
+    <div data-p="3"><b>3</b>Presentar</div>
+  </div>
+  <div id="ivaCuerpo"><div class="vacio">Cargando...</div></div>
 </div>
 
 <div class="scroll" id="alqFac">
@@ -881,6 +927,176 @@ function alqTab(t) {
   document.getElementById("alqFac").style.display = t === "fac" ? "" : "none";
   document.getElementById("alqBarra").style.display = t === "fac" ? "" : "none";
   document.getElementById("alqIva").style.display = t === "iva" ? "" : "none";
+  document.querySelectorAll("#vAlq header .btn-copy, #selAnio, #selMesN")
+    .forEach(el => el.style.display = t === "iva" ? "none" : "");   // controles de facturación
+  if (t === "iva") ivaEntrar();
+}
+
+// ─── DDJJ de IVA ──────────────────────────────────────────────────────────
+const iva = { contrib: "ANA", data: null, timer: null, iniciado: false };
+const IVA_EN_CURSO = ["preparando", "finalizando", "presentando"];
+const IVA_NOMBRE = { ANA: "Ana Wainstein", SUC: "Sucesión Fernández" };
+
+function ivaEntrar() {
+  if (!iva.iniciado) {
+    iva.iniciado = true;
+    const hoy = new Date(), ant = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);  // sugerido: mes anterior
+    const selM = document.getElementById("ivaMes"), selA = document.getElementById("ivaAnio");
+    NOMBRES_MES.forEach((n, i) => selM.add(new Option(n, String(i + 1).padStart(2, "0"), false, i === ant.getMonth())));
+    [hoy.getFullYear() - 1, hoy.getFullYear()].forEach(a => selA.add(new Option(a, a, false, a === ant.getFullYear())));
+  }
+  ivaCargar();
+}
+
+function ivaContrib(c) {
+  iva.contrib = c;
+  document.querySelectorAll("#ivaContrib button").forEach(b => b.classList.toggle("on", b.dataset.c === c));
+  ivaCargar();
+}
+
+function ivaPeriodo() { return document.getElementById("ivaAnio").value + document.getElementById("ivaMes").value; }
+
+async function ivaCargar(silencioso) {
+  const pedido = iva.pedido = (iva.pedido || 0) + 1;
+  if (!silencioso) document.getElementById("ivaCuerpo").innerHTML = '<div class="vacio">Cargando...</div>';
+  let d;
+  try {
+    const r = await api(`/api/ddjj?contrib=${iva.contrib}&periodo=${ivaPeriodo()}`);
+    d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.status);
+  } catch (e) {
+    if (pedido === iva.pedido) document.getElementById("ivaCuerpo").innerHTML = `<div class="vacio">No pude cargar: ${esc(e.message)}</div>`;
+    return;
+  }
+  if (pedido !== iva.pedido) return;
+  iva.data = d;
+  ivaRender();
+  const enCurso = d.job && IVA_EN_CURSO.includes(d.job.estado);
+  if (enCurso && !iva.timer) iva.timer = setInterval(() => ivaCargar(true), 4000);
+  if (!enCurso && iva.timer) { clearInterval(iva.timer); iva.timer = null; }
+}
+
+function ivaPasos(estado) {
+  const n = { nuevo: 1, error: 1, preparando: 1, revisar: 2, finalizando: 2, listo_presentar: 3,
+              presentando: 3, verificar: 3, presentada: 4 }[estado] || 1;
+  document.querySelectorAll("#ivaPasos div").forEach(el => {
+    const p = +el.dataset.p;
+    el.className = p < n ? "hecho" : (p === n ? "actual" : "");
+  });
+}
+
+const ivaPesos = s => s == null ? "—" : "$ " + s;                       // ARCA ya los da formateados
+const ivaPesosNum = n => "$ " + Number(n).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function ivaRender() {
+  const { job, alquibot, archivos } = iva.data;
+  const estado = job ? job.estado : "nuevo";
+  ivaPasos(estado);
+  const per = ivaPeriodo(), perTxt = `${NOMBRES_MES[+per.slice(4) - 1]} ${per.slice(0, 4)}`;
+  let h = "";
+  if (job?.mensaje) h += `<div class="iva-nota ${estado === "verificar" || estado === "error" ? "mal" : "info"}">${esc(job.mensaje)}</div>`;
+
+  if (estado === "nuevo" || estado === "error") {
+    h += `<div class="iva-card"><h3>${IVA_NOMBRE[iva.contrib]} · ${perTxt}</h3>
+      <p style="font-size:14px;line-height:1.5;color:var(--sub)">El robot importa el Libro de Ventas desde ARCA y lee
+      el neto gravado. <b>No finaliza ni presenta nada</b>: después te muestra los montos para que confirmes.</p>
+      ${ivaAlquibot(alquibot, null)}</div>
+      <button class="iva-btn" onclick="ivaAccion('preparar')">1 · Revisar libro</button>`;
+  } else if (IVA_EN_CURSO.includes(estado)) {
+    const que = { preparando: "Revisando el libro", finalizando: "Finalizando el libro", presentando: "Presentando la DJ" }[estado];
+    h += `<div class="iva-card"><div class="ls r">⏳ ${que}...</div><div class="log" id="ivaLog">Esperando al robot...</div></div>`;
+  } else if (estado === "revisar") {
+    const grav = +job.monto_gravado;
+    h += `<div class="iva-card"><h3>Libro IVA · ${perTxt}</h3>
+      <div class="iva-fila grande"><span>Neto gravado</span><b>${ivaPesosNum(grav)}</b></div>
+      <div class="iva-fila"><span>IVA 21%</span><b>${ivaPesosNum(grav * 0.21)}</b></div>
+      ${job.monto_nc ? `<div class="iva-fila"><span>Notas de crédito</span><b>${ivaPesosNum(+job.monto_nc)}</b></div>` : ""}
+      ${ivaAlquibot(alquibot, grav)}</div>
+      <div class="iva-nota info">Al confirmar, el robot carga la apertura y <b>finaliza la registración del Libro IVA</b>
+      (no se puede deshacer). Después lee la DJ y frena antes de presentar.</div>
+      <button class="iva-btn peligro" onclick="ivaAccion('finalizar')">2 · Finalizar libro</button>
+      <button class="iva-btn sec" onclick="ivaAccion('preparar')">Volver a revisar</button>`;
+  } else if (estado === "listo_presentar") {
+    h += `<div class="iva-card"><h3>DJ F.2051 · ${perTxt}</h3>
+      <div class="iva-fila"><span>Débito fiscal</span><b>${ivaPesos(job.dj_debito)}</b></div>
+      <div class="iva-fila"><span>Crédito fiscal</span><b>${ivaPesos(job.dj_credito)}</b></div>
+      <div class="iva-fila grande"><span>Saldo a pagar</span><b>${ivaPesos(job.dj_saldo)}</b></div></div>
+      <div class="iva-nota ${job.coincide ? "ok" : "mal"}">${esc(job.comparacion || "")}</div>
+      ${job.coincide ? "" : `<label class="iva-chk"><input type="checkbox" id="ivaAcepto" onchange="document.getElementById('ivaBtnPres').disabled=!this.checked">
+        Revisé la diferencia y quiero presentar igual</label>`}
+      <button class="iva-btn final" id="ivaBtnPres" ${job.coincide ? "" : "disabled"} onclick="ivaAccion('presentar')">3 · Presentar DJ</button>`;
+  } else if (estado === "verificar") {
+    h += `<div class="iva-card"><p style="font-size:14px;line-height:1.5">Entrá a ARCA → Portal IVA → Declaraciones
+      presentadas y fijate si la DJ de ${perTxt} figura presentada.</p></div>
+      <button class="iva-btn" onclick="ivaVerificado(true)">Sí, quedó presentada</button>
+      <button class="iva-btn sec" onclick="ivaVerificado(false)">No se presentó</button>`;
+  } else if (estado === "presentada") {
+    h += `<div class="iva-card"><div class="ls ok">✅ DJ presentada</div>
+      <div class="iva-fila"><span>Saldo a pagar</span><b>${ivaPesos(job.dj_saldo)}</b></div>
+      <div class="iva-fila"><span>Pago</span><b>${esc(job.vep || "—")}</b></div></div>`;
+  }
+
+  if (archivos?.length) {
+    h += `<div class="iva-card"><h3>Capturas y comprobantes</h3><div class="iva-arch">` +
+      archivos.map(a => `<button onclick="ivaAbrir('${esc(a)}')">${a.endsWith(".pdf") ? "📄" : "🖼️"} ${esc(a.split("/")[1].replace(/_/g, " "))}</button>`).join("") +
+      `</div></div>`;
+  }
+  const logViejo = document.getElementById("ivaLog")?.textContent;
+  document.getElementById("ivaCuerpo").innerHTML = h;
+  if (job && IVA_EN_CURSO.includes(estado)) ivaLog(job.id, logViejo);
+}
+
+function ivaAlquibot(a, gravado) {
+  if (!a || a.neto_emitido == null) return "";
+  let h = `<div class="iva-fila"><span>Facturado en AlquiBot (neto)</span><b>${ivaPesosNum(a.neto_emitido)}</b></div>`;
+  if (a.pendientes) h += `<div class="iva-nota mal" style="margin-top:8px">⚠ Hay ${a.pendientes} factura${a.pendientes > 1 ? "s" : ""} de AlquiBot de este mes sin emitir</div>`;
+  if (gravado != null) {
+    const dif = gravado - a.neto_emitido;
+    h += Math.abs(dif) < 1
+      ? `<div class="iva-nota ok" style="margin-top:8px">✅ Coincide con lo facturado en AlquiBot</div>`
+      : `<div class="iva-nota mal" style="margin-top:8px">⚠ Difiere de AlquiBot en ${ivaPesosNum(dif)}. Revisalo antes de finalizar.</div>`;
+  }
+  return h;
+}
+
+async function ivaLog(jobId, previo) {
+  const el = document.getElementById("ivaLog");
+  if (previo && el) el.textContent = previo;
+  const logs = await api(`/api/ddjj/progreso?job_id=${jobId}`).then(r => r.json()).catch(() => []);
+  const el2 = document.getElementById("ivaLog");
+  if (el2 && Array.isArray(logs) && logs.length) { el2.textContent = logs.map(l => l.mensaje).join("\n"); el2.scrollTop = el2.scrollHeight; }
+}
+
+async function ivaAccion(accion) {
+  const job = iva.data.job, per = ivaPeriodo(), perTxt = `${per.slice(4)}/${per.slice(0, 4)}`;
+  const quien = IVA_NOMBRE[iva.contrib];
+  if (accion === "finalizar" && !confirm(`⚠️ ${quien} · ${perTxt}\n\nVa a FINALIZAR la registración del Libro IVA con neto gravado ${ivaPesosNum(+job.monto_gravado)}.\nNo se puede deshacer.\n\n¿Continuar?`)) return;
+  if (accion === "presentar" && !confirm(`🔴 PUNTO DE NO RETORNO\n\n${quien} · ${perTxt}\nDébito fiscal: $ ${job.dj_debito}\nSaldo a pagar: $ ${job.dj_saldo}\n\nVa a PRESENTAR la DJ ante ARCA y generar el VEP.\n¿Estás seguro?`)) return;
+  const body = { contrib: iva.contrib, periodo: per, accion };
+  if (accion === "presentar" && !job.coincide) body.confirmo_diferencia = !!document.getElementById("ivaAcepto")?.checked;
+  document.querySelectorAll("#ivaCuerpo .iva-btn").forEach(b => b.disabled = true);
+  const r = await api("/api/ddjj/accion", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+    .then(r => r.json()).catch(e => ({ error: e.message }));
+  if (r.error) { alert("❌ " + r.error); return ivaCargar(); }
+  ivaCargar();
+}
+
+async function ivaVerificado(presentada) {
+  if (!confirm(presentada ? "¿Confirmás que la DJ figura presentada en ARCA?" : "¿Confirmás que la DJ NO figura presentada en ARCA?")) return;
+  const r = await api("/api/ddjj/accion", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contrib: iva.contrib, periodo: ivaPeriodo(), accion: "verificado", presentada }) })
+    .then(r => r.json()).catch(e => ({ error: e.message }));
+  if (r.error) alert("❌ " + r.error);
+  ivaCargar();
+}
+
+async function ivaAbrir(path) {
+  const w = window.open("", "_blank");
+  try {
+    const r = await api(`/api/ddjj/archivo?path=${encodeURIComponent(path)}`);
+    const url = URL.createObjectURL(await r.blob());
+    if (w) w.location = url; else location.href = url;
+  } catch (e) { if (w) w.close(); alert("No pude abrir el archivo"); }
 }
 
 // ─── Hechizo ─────────────────────────────────────────────────────────────

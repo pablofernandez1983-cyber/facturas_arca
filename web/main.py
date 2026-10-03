@@ -38,6 +38,8 @@ app = FastAPI()
 
 from web.hechizo import router as hechizo_router
 app.include_router(hechizo_router)
+from web.ddjj import router as ddjj_router
+app.include_router(ddjj_router)
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
