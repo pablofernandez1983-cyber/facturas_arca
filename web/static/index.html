@@ -313,7 +313,7 @@ async function verificarPin() {
   btn.disabled = false;
 
   if (resp.ok) {
-    sessionStorage.setItem("pin", input.value);
+    try { localStorage.setItem("pin", input.value); } catch (e) {}
     document.getElementById("loginScreen").classList.add("oculto");
     err.textContent = "";
     input.classList.remove("error");
@@ -327,9 +327,11 @@ async function verificarPin() {
 }
 
 // El servidor exige el PIN en cada llamada a /api/* (header X-App-Pin).
-// Se guarda solo en sessionStorage: al cerrar la app hay que volver a ponerlo.
+// Queda guardado en el celu (localStorage) para no pedirlo cada vez; si el PIN cambia, el
+// servidor responde 401 y se vuelve a pedir.
+function pinGuardado() { try { return localStorage.getItem("pin") || ""; } catch (e) { return ""; } }
 function mostrarLogin(msg) {
-  sessionStorage.removeItem("pin");
+  try { localStorage.removeItem("pin"); } catch (e) {}
   document.getElementById("loginScreen").classList.remove("oculto");
   document.getElementById("loginError").textContent = msg || "";
   document.getElementById("pinInput").focus();
@@ -338,13 +340,13 @@ function mostrarLogin(msg) {
 async function api(path, opts = {}) {
   const resp = await fetch(path, {
     ...opts,
-    headers: { ...(opts.headers || {}), "X-App-Pin": sessionStorage.getItem("pin") || "" },
+    headers: { ...(opts.headers || {}), "X-App-Pin": pinGuardado() || "" },
   });
   if (resp.status === 401) { mostrarLogin("Ingresá el PIN de nuevo"); throw new Error("PIN incorrecto"); }
   return resp;
 }
 
-if (sessionStorage.getItem("pin")) {
+if (pinGuardado()) {
   document.getElementById("loginScreen").classList.add("oculto");
 } else {
   document.getElementById("pinInput").focus();
@@ -726,7 +728,7 @@ function esc(s) {
   return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
-if (sessionStorage.getItem("pin")) init();
+if (pinGuardado()) init();
 </script>
 </body>
 </html>
