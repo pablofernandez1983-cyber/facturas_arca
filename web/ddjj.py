@@ -14,6 +14,9 @@ montos que Pablo vio en el celu: si ARCA muestra otra cosa, el robot frena sin t
 En cada pausa el robot queda conectado a ARCA unos minutos (`esperando` = la acción que espera):
 si Pablo confirma mientras tanto, la aprobación se le pasa por `aprobado` y sigue en la misma
 sesión; si no, la confirmación dispara una corrida nueva como siempre.
+
+`contrib=AMBOS` (solo preparar): una corrida hace la de Ana completa y después la de la Sucesión,
+con el mismo login. La Sucesión queda "preparando" en cola hasta que el robot llega a ella.
 """
 
 import os
@@ -136,8 +139,10 @@ async def ddjj_estado(contrib: str, periodo: str):
                    if nuevo == "verificar" else "El robot se cortó sin terminar. Podés volver a intentarlo.")
             await _actualizar(c, job["id"], {"estado": nuevo, "mensaje": msg, "fase_en_curso": None})
             job = await _job_por_id(c, job["id"])
+        otro = await _job(c, "SUC" if contrib == "ANA" else "ANA", periodo)
         return {
             "job": job,
+            "otro_estado": otro["estado"] if otro else "nuevo",
             "archivos": await _archivos(c, job["id"]) if job else [],
             "alquibot": await _alquibot(c, contrib, periodo),
             "robot_ocupado": ocupado,
@@ -162,6 +167,8 @@ async def ddjj_accion(request: Request):
     """Body: {contrib, periodo, accion: preparar|finalizar|presentar|verificado, ...}"""
     body = await request.json()
     contrib, periodo, accion = body.get("contrib"), str(body.get("periodo", "")), body.get("accion")
+    if contrib == "AMBOS" and accion == "preparar" and _validos("ANA", periodo):
+        return await _preparar_ambas(periodo)
     if not _validos(contrib, periodo):
         return JSONResponse(status_code=400, content={"error": "contribuyente o período inválido"})
 
@@ -229,6 +236,51 @@ async def ddjj_accion(request: Request):
                                              "mensaje": f"No se pudo arrancar el robot: GitHub {r.status_code}"})
             return JSONResponse(status_code=502, content={"error": f"GitHub {r.status_code}: {r.text[:200]}"})
     return {"ok": True, "job_id": job["id"]}
+
+
+async def _crear_o_traer(c, contrib, periodo):
+    job = await _job(c, contrib, periodo)
+    if job:
+        return job
+    r = await c.post(f"{SUPABASE_URL}/rest/v1/ddjj_iva", json={"contrib": contrib, "periodo": periodo},
+                     headers=_sb({"Content-Type": "application/json", "Prefer": "return=representation"}))
+    r.raise_for_status()
+    return r.json()[0]
+
+
+async def _preparar_ambas(periodo):
+    """Ana completa y después la Sucesión, en una sola corrida (un login)."""
+    puede = {"nuevo", "error", "revisar"}
+    async with httpx.AsyncClient(timeout=20) as c:
+        try:
+            runs = await _runs(c)
+        except Exception as e:
+            return JSONResponse(status_code=502, content={"error": str(e)})
+        if any(x["status"] != "completed" for x in runs):
+            return JSONResponse(status_code=409, content={"error": "El robot de IVA ya está trabajando. Esperá a que termine."})
+        ana = await _crear_o_traer(c, "ANA", periodo)
+        suc = await _crear_o_traer(c, "SUC", periodo)
+        if ana["estado"] not in puede or suc["estado"] not in puede:
+            return JSONResponse(status_code=409, content={
+                "error": "Para hacer las dos seguidas, ninguna tiene que estar en curso ni presentada: hacelas por separado"})
+        for j in (ana, suc):
+            await c.delete(f"{SUPABASE_URL}/rest/v1/ddjj_log?job_id=eq.{j['id']}", headers=_sb())
+        await _actualizar(c, ana["id"], {"estado": "preparando", "fase_en_curso": "preparar", "mensaje": None,
+                                         "esperando": None, "aprobado": None})
+        await _actualizar(c, suc["id"], {"estado": "preparando", "fase_en_curso": "preparar",
+                                         "mensaje": "⏳ Arranca cuando termine la de Ana (mismo login).",
+                                         "esperando": None, "aprobado": None})
+        r = await c.post(f"https://api.github.com/repos/{RUNNER_REPO}/actions/workflows/{WORKFLOW_FILE}/dispatches",
+                         headers=_gh(),
+                         json={"ref": "main", "inputs": {"fase": "preparar", "contrib": "AMBOS", "periodo": periodo,
+                                                         "job_id": f"{ana['id']},{suc['id']}",
+                                                         "esperado": json.dumps({"suc_previo": suc["estado"]})}})
+        if r.status_code != 204:
+            for j in (ana, suc):
+                await _actualizar(c, j["id"], {"estado": j["estado"], "fase_en_curso": None,
+                                               "mensaje": f"No se pudo arrancar el robot: GitHub {r.status_code}"})
+            return JSONResponse(status_code=502, content={"error": f"GitHub {r.status_code}: {r.text[:200]}"})
+    return {"ok": True, "job_id": ana["id"]}
 
 
 @router.get("/api/ddjj/progreso")

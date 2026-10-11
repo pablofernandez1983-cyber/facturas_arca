@@ -975,7 +975,11 @@ async function ivaCargar(silencioso) {
   ivaRender();
   // Recién presentada y con el VEP ya leído (llega ~15 s después): si están las dos, mensaje para Ana
   const listaJ = j => j?.estado === "presentada" && !!j.vep;
-  if (antes && antes.id === d.job?.id && !listaJ(antes) && listaJ(d.job)) ivaMensajeMama(true);
+  if (antes && antes.id === d.job?.id && !listaJ(antes) && listaJ(d.job)) {
+    // Ana terminó y el robot sigue con la Sucesión en la misma corrida: pasar a verla
+    if (iva.contrib === "ANA" && IVA_EN_CURSO.includes(d.otro_estado)) setTimeout(() => ivaContrib("SUC"), 3000);
+    else ivaMensajeMama(true);
+  }
   const esperandoVep = d.job?.estado === "presentada" && !d.job.vep && antes?.id === d.job.id;
   const enCurso = d.job && (IVA_EN_CURSO.includes(d.job.estado) || esperandoVep);
   if (enCurso && !iva.timer) iva.timer = setInterval(() => ivaCargar(true), 4000);
@@ -1007,8 +1011,15 @@ function ivaRender() {
     h += `<div class="iva-card"><h3>${IVA_NOMBRE[iva.contrib]} · ${perTxt}</h3>
       <p style="font-size:14px;line-height:1.5;color:var(--sub)">El robot importa el Libro de Ventas desde ARCA y lee
       el neto gravado. <b>No finaliza ni presenta nada</b>: después te muestra los montos para que confirmes.</p>
-      ${ivaAlquibot(alquibot, null)}</div>
-      <button class="iva-btn" onclick="ivaAccion('preparar')">1 · Revisar libro</button>`;
+      ${ivaAlquibot(alquibot, null)}</div>`;
+    if (iva.contrib === "ANA" && ["nuevo", "error", "revisar"].includes(iva.data.otro_estado)) {
+      h += `<div class="iva-nota info">Con un solo login: primero la de Ana completa (con tus dos OK) y,
+        cuando quede presentada, sigue con la de la Sucesión (otros dos OK).</div>
+        <button class="iva-btn" onclick="ivaAmbas()">1 · Revisar libro (Ana y después Sucesión)</button>
+        <button class="iva-btn sec" onclick="ivaAccion('preparar')">Solo Ana</button>`;
+    } else {
+      h += `<button class="iva-btn" onclick="ivaAccion('preparar')">1 · Revisar libro</button>`;
+    }
   } else if (IVA_EN_CURSO.includes(estado)) {
     const que = { preparando: "Revisando el libro", finalizando: "Finalizando el libro", presentando: "Presentando la DJ" }[estado];
     h += `<div class="iva-card"><div class="ls r">⏳ ${que}...</div><div class="log" id="ivaLog">Esperando al robot...</div></div>`;
@@ -1153,6 +1164,15 @@ async function ivaAccion(accion) {
   const r = await api("/api/ddjj/accion", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
     .then(r => r.json()).catch(e => ({ error: e.message }));
   if (r.error) { alert("❌ " + r.error); return ivaCargar(); }
+  ivaCargar();
+}
+
+async function ivaAmbas() {
+  document.querySelectorAll("#ivaCuerpo .iva-btn").forEach(b => b.disabled = true);
+  const r = await api("/api/ddjj/accion", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contrib: "AMBOS", periodo: ivaPeriodo(), accion: "preparar" }) })
+    .then(r => r.json()).catch(e => ({ error: e.message }));
+  if (r.error) alert("❌ " + r.error);
   ivaCargar();
 }
 
