@@ -1292,8 +1292,10 @@ function hbAviso() {
   const d = hb.data, a = d.ajustes.find(x => x.estado === "parcial");
   const ult = [...d.ajustes].reverse().find(x => x.estado === "aplicado");
   let h = "";
-  if (d.ipc_error) h += `<div class="iva-nota ${d.ipc_error.startsWith("No pude actualizar") ? "info" : "mal"}"
-      style="font-size:12px">${esc(d.ipc_error)}</div>`;
+  if (d.ipc_error) h += `<div class="iva-nota mal" style="font-size:12px">${esc(d.ipc_error)}</div>`;
+  if (d.ipc_busqueda) h += `<div class="iva-nota info" style="font-size:12px">🔎 ${esc(d.ipc_busqueda)}</div>`;
+  else if (d.ipc_estimados?.length) h += `<div class="iva-nota info" style="font-size:12px">IPC estimado desde el % mensual:
+      ${esc(d.ipc_estimados.join(", "))}. Se corrige solo cuando el INDEC publica el índice.</div>`;
   if (a) h += `<div class="iva-nota info">⏳ <b>Ajuste de ${esc(a.mes)}</b>: falta el IPC de ${esc(a.falta.join(" y "))}
       (sale a ${esc(a.sale)}). Con lo publicado va <b>+${a.variacion_parcial.toLocaleString("es-AR")}%</b>
       (≈ ${hbPesos(a.valor_parcial)}). ${esc(a.mes.split(" ")[0])} no se puede facturar hasta que salga.</div>`;

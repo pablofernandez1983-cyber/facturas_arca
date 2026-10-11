@@ -12,6 +12,8 @@ Dos partes:
 """
 
 import os
+import io
+import csv
 import asyncio
 import re
 import hmac
@@ -81,50 +83,134 @@ def _dt(s: str) -> datetime:
 # ─────────────────────────────────────────────
 # IPC y cronograma del contrato
 # ─────────────────────────────────────────────
-_ipc_estado = {"intento": 0.0, "error": None}
+_ipc_estado = {"intento": 0.0, "busqueda": None}
+FUENTES_INDICE = ("INDEC", "datos.gob.ar")   # traen el índice exacto; las otras solo el % con 1 decimal
 
 
-async def _ipc(c) -> dict:
-    """{'YYYYMM': índice} desde la tabla `ipc_indec` (respuesta inmediata). Si hace más de 3 h que
-    no se consulta la API de datos.gob.ar, se actualiza en segundo plano: el 11/10/2026 la API se
-    colgó (30 s por consulta) y la pantalla quedaba en "Cargando...". Lo nuevo aparece en la
-    próxima carga."""
-    if time.time() - _ipc_estado["intento"] > 3 * 3600:
-        _ipc_estado["intento"] = time.time()
-        asyncio.create_task(_ipc_refrescar())
-    r = await c.get(f"{SUPABASE_URL}/rest/v1/ipc_indec?select=periodo,indice", headers=_sb())
+async def _ipc(c):
+    """({'YYYYMM': índice}, {'YYYYMM': fuente}) desde la tabla `ipc_indec`: responde al instante.
+
+    Solo se sale a buscar cuando hace falta: si el próximo ajuste necesita un IPC que ya debería
+    estar publicado (el INDEC lo publica a mediados del mes siguiente; se busca desde el día 8) y
+    no está, o está solo estimado. En ese caso, como mucho cada 2 h y en segundo plano (el
+    11/10/2026 datos.gob.ar se colgó y la pantalla quedaba en "Cargando...")."""
+    r = await c.get(f"{SUPABASE_URL}/rest/v1/ipc_indec?select=periodo,indice,fuente", headers=_sb())
     r.raise_for_status()
-    return {f["periodo"]: float(f["indice"]) for f in r.json()}
+    ipc = {f["periodo"]: float(f["indice"]) for f in r.json()}
+    fuentes = {f["periodo"]: f["fuente"] for f in r.json()}
+    falta = _ipc_que_falta(ipc, fuentes)
+    if falta and time.time() - _ipc_estado["intento"] > 2 * 3600:
+        _ipc_estado["intento"] = time.time()
+        asyncio.create_task(_ipc_refrescar(falta, ipc, fuentes))
+    if not falta:
+        _ipc_estado["busqueda"] = None
+    return ipc, fuentes
 
 
-async def _ipc_refrescar():
-    """La API de series cachea por URL y algunas variantes devuelven datos viejos o meses en null
-    (11/10/2026: con start_date=2025-01-01&limit=1000 faltaba agosto). Se piden varias en paralelo
-    y se unen: los valores no se contradicen, solo cambia qué meses trae cada una."""
+def _ipc_que_falta(ipc: dict, fuentes: dict) -> list:
+    """Meses del próximo ajuste pendiente cuyo IPC ya debería estar publicado y no está (o está
+    estimado desde un %)."""
     hoy = _hoy()
-    variantes = [{"start_date": "2025-06-01"}, {"start_date": "2025-10-01"},
-                 {"start_date": f"{hoy.year - 1}-{hoy.month:02d}-01"}, {"start_date": "2025-01-01", "limit": 999}]
-    async with httpx.AsyncClient(timeout=15) as c:
-        async def una(v):
-            r = await c.get("https://apis.datos.gob.ar/series/api/series/",
-                            params={"ids": IPC_SERIE, "format": "json", **v})
+    ini = CONTRATO["inicio"][:4] + CONTRATO["inicio"][5:7]
+    fin = CONTRATO["fin"][:4] + CONTRATO["fin"][5:7]
+    p = _mas_meses(ini, CONTRATO["cada_meses"])
+    while p <= fin:
+        necesarios = [_mas_meses(p, -k) for k in (4, 3, 2, 1)]
+        incompletos = [m for m in necesarios if m not in ipc or fuentes.get(m) not in FUENTES_INDICE]
+        if incompletos:
+            # Solo importa en el mes del ajuste: el IPC del mes anterior sale a mediados (día 8 en
+            # adelante). Los meses intermedios se completan en esa misma búsqueda.
+            return incompletos if hoy >= date(int(p[:4]), int(p[4:]), 8) else []
+        p = _mas_meses(p, CONTRATO["cada_meses"])
+    return []
+
+
+async def _ipc_refrescar(falta: list, ipc: dict, fuentes: dict):
+    """Busca en orden INDEC (CSV oficial), datos.gob.ar, BCRA y ArgentinaDatos hasta completar lo
+    que falta. Los índices exactos pisan a los estimados; un estimado nunca pisa un índice."""
+    nuevos, probadas = {}, []   # {periodo: (indice, fuente)}
+
+    def pendientes():
+        return [m for m in falta if m not in nuevos]
+
+    async with httpx.AsyncClient(timeout=20, follow_redirects=True) as c:
+        # 1) INDEC: serie_ipc_divisiones.csv (Nacional, nivel general = código 0)
+        try:
+            probadas.append("INDEC")
+            r = await c.get("https://www.indec.gob.ar/ftp/cuadros/economia/serie_ipc_divisiones.csv")
             r.raise_for_status()
-            return {f[0][:4] + f[0][5:7]: float(f[1]) for f in r.json()["data"] if f[1] is not None}
-        res = await asyncio.gather(*(una(v) for v in variantes), return_exceptions=True)
-        datos = {}
-        for x in res:
-            if isinstance(x, dict):
-                datos.update(x)
-        if not datos:
-            _ipc_estado["error"] = f"datos.gob.ar no respondió ({type(res[0]).__name__})"
-            _ipc_estado["intento"] = time.time() - 2.5 * 3600   # reintentar en ~30 min
-            return
-        _ipc_estado["error"] = None
-        await c.post(f"{SUPABASE_URL}/rest/v1/ipc_indec?on_conflict=periodo",
-                     json=[{"periodo": p, "indice": v, "actualizado_at": datetime.now(timezone.utc).isoformat()}
-                           for p, v in datos.items()],
-                     headers=_sb({"Content-Type": "application/json",
-                                  "Prefer": "resolution=merge-duplicates,return=minimal"}))
+            try:
+                texto = r.content.decode("utf-8")
+            except UnicodeDecodeError:
+                texto = r.content.decode("latin-1")
+            for fila in csv.DictReader(io.StringIO(texto), delimiter=";"):
+                if fila.get("Codigo") == "0" and fila.get("Region") == "Nacional" and fila.get("Indice_IPC") not in (None, "", "NA"):
+                    nuevos[fila["Periodo"]] = (float(fila["Indice_IPC"].replace(",", ".")), "INDEC")
+        except Exception as e:
+            print(f"IPC INDEC: {e}")
+
+        # 2) datos.gob.ar (cachea por URL: varias variantes en paralelo y se unen)
+        if pendientes():
+            probadas.append("datos.gob.ar")
+            hoy = _hoy()
+            variantes = [{"start_date": "2025-10-01"}, {"start_date": f"{hoy.year - 1}-{hoy.month:02d}-01"},
+                         {"start_date": "2025-01-01", "limit": 999}]
+
+            async def una(v):
+                r = await c.get("https://apis.datos.gob.ar/series/api/series/",
+                                params={"ids": IPC_SERIE, "format": "json", **v}, timeout=12)
+                r.raise_for_status()
+                return {f[0][:4] + f[0][5:7]: float(f[1]) for f in r.json()["data"] if f[1] is not None}
+            for x in await asyncio.gather(*(una(v) for v in variantes), return_exceptions=True):
+                if isinstance(x, dict):
+                    for p, v in x.items():
+                        nuevos.setdefault(p, (v, "datos.gob.ar"))
+
+        # 3) y 4) Solo el % mensual (1 decimal): se estima el índice encadenando desde el mes anterior
+        async def por_porcentaje(nombre, url, params, extraer):
+            if not pendientes():
+                return
+            probadas.append(nombre)
+            try:
+                r = await c.get(url, params=params)
+                r.raise_for_status()
+                pct = extraer(r.json())
+            except Exception as e:
+                print(f"IPC {nombre}: {e}")
+                return
+            for m in sorted(pendientes()):
+                ant = _mas_meses(m, -1)
+                base = nuevos.get(ant, (ipc.get(ant), None))[0]
+                if base and m in pct:
+                    nuevos[m] = (round(base * (1 + pct[m] / 100), 4), f"{nombre} (%)")
+
+        await por_porcentaje("BCRA", "https://api.bcra.gob.ar/estadisticas/v4.0/monetarias/27",
+                             {"desde": f"{falta[0][:4]}-{falta[0][4:]}-01"},
+                             lambda j: {d["fecha"][:4] + d["fecha"][5:7]: float(d["valor"])
+                                        for d in j["results"][0]["detalle"]})
+        await por_porcentaje("ArgentinaDatos", "https://api.argentinadatos.com/v1/finanzas/indices/inflacion", None,
+                             lambda j: {d["fecha"][:4] + d["fecha"][5:7]: float(d["valor"]) for d in j[-24:]})
+
+        # Guardar: índices exactos siempre; estimados solo donde no hay un índice exacto
+        filas = [{"periodo": p, "indice": v, "fuente": f, "actualizado_at": datetime.now(timezone.utc).isoformat()}
+                 for p, (v, f) in nuevos.items()
+                 if f in FUENTES_INDICE and (ipc.get(p) != v or fuentes.get(p) != f)
+                 or f not in FUENTES_INDICE and fuentes.get(p) not in FUENTES_INDICE]
+        if filas:
+            await c.post(f"{SUPABASE_URL}/rest/v1/ipc_indec?on_conflict=periodo", json=filas,
+                         headers=_sb({"Content-Type": "application/json",
+                                      "Prefer": "resolution=merge-duplicates,return=minimal"}))
+    hora = datetime.now(AR).strftime("%d/%m %H:%M")
+    no_esta = [_mes_txt(m) for m in falta if m not in nuevos]
+    estimado = [f"{_mes_txt(m)} ({nuevos[m][1]})" for m in falta if m in nuevos and nuevos[m][1] not in FUENTES_INDICE]
+    if no_esta:
+        _ipc_estado["busqueda"] = (f"Busqué el IPC de {', '.join(no_esta)} en {', '.join(probadas)} ({hora}): "
+                                   f"todavía no salió. Vuelvo a mirar en unas horas.")
+    elif estimado:
+        _ipc_estado["busqueda"] = (f"IPC de {', '.join(estimado)} estimado desde el % mensual (1 decimal); "
+                                   f"cuando el INDEC publique el índice exacto se corrige solo.")
+    else:
+        _ipc_estado["busqueda"] = None
 
 
 def _cronograma(ipc: dict) -> list:
@@ -223,12 +309,9 @@ async def humberto_estado():
     async with httpx.AsyncClient(timeout=20) as c:
         ipc_error = None
         try:
-            ipc = await _ipc(c)
+            ipc, fuentes = await _ipc(c)
         except Exception as e:
-            ipc, ipc_error = {}, f"No pude leer el IPC guardado: {e}"
-        if not ipc_error and _ipc_estado["error"]:
-            ipc_error = (f"No pude actualizar el IPC ({_ipc_estado['error']}): uso lo guardado, "
-                         f"hasta {_mes_txt(max(ipc)) if ipc else '—'}.")
+            ipc, fuentes, ipc_error = {}, {}, f"No pude leer el IPC guardado: {e}"
         ajustes = _cronograma(ipc)
         facturas = {f["periodo"]: f for f in await _facturas(c)}
 
@@ -266,6 +349,9 @@ async def humberto_estado():
     return {"contrato": CONTRATO, "ajustes": ajustes, "meses": meses, "actual": actual,
             "valor_vigente": _valor_de(actual, ajustes), "ajuste_vigente": vigente,
             "ipc_ultimo": _mes_txt(max(ipc)) if ipc else None, "ipc_error": ipc_error,
+            "ipc_busqueda": _ipc_estado["busqueda"],
+            "ipc_estimados": [f"{_mes_txt(p)} ({f})" for p, f in sorted(fuentes.items())
+                              if f not in FUENTES_INDICE and p >= "202603"],
             "robot_ocupado": vivo,
             "run": run and {"status": run["status"], "conclusion": run["conclusion"], "url": run["html_url"]}}
 
