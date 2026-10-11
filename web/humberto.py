@@ -12,6 +12,7 @@ Dos partes:
 """
 
 import os
+import asyncio
 import re
 import hmac
 import time
@@ -80,33 +81,50 @@ def _dt(s: str) -> datetime:
 # ─────────────────────────────────────────────
 # IPC y cronograma del contrato
 # ─────────────────────────────────────────────
-_ipc_cache = {"t": 0.0, "datos": {}}
+_ipc_estado = {"intento": 0.0, "error": None}
 
 
 async def _ipc(c) -> dict:
-    """{'YYYYMM': índice}. Cacheado 3 h (el INDEC publica una vez por mes).
+    """{'YYYYMM': índice} desde la tabla `ipc_indec` (respuesta inmediata). Si hace más de 3 h que
+    no se consulta la API de datos.gob.ar, se actualiza en segundo plano: el 11/10/2026 la API se
+    colgó (30 s por consulta) y la pantalla quedaba en "Cargando...". Lo nuevo aparece en la
+    próxima carga."""
+    if time.time() - _ipc_estado["intento"] > 3 * 3600:
+        _ipc_estado["intento"] = time.time()
+        asyncio.create_task(_ipc_refrescar())
+    r = await c.get(f"{SUPABASE_URL}/rest/v1/ipc_indec?select=periodo,indice", headers=_sb())
+    r.raise_for_status()
+    return {f["periodo"]: float(f["indice"]) for f in r.json()}
 
-    La API de series cachea por URL y algunas variantes devuelven datos viejos o meses en null
-    (11/10/2026: con start_date=2025-01-01&limit=1000 faltaba agosto). Se piden varias y se unen:
-    los valores no se contradicen, solo cambia qué meses trae cada una."""
-    if _ipc_cache["datos"] and time.time() - _ipc_cache["t"] < 3 * 3600:
-        return _ipc_cache["datos"]
+
+async def _ipc_refrescar():
+    """La API de series cachea por URL y algunas variantes devuelven datos viejos o meses en null
+    (11/10/2026: con start_date=2025-01-01&limit=1000 faltaba agosto). Se piden varias en paralelo
+    y se unen: los valores no se contradicen, solo cambia qué meses trae cada una."""
     hoy = _hoy()
     variantes = [{"start_date": "2025-06-01"}, {"start_date": "2025-10-01"},
                  {"start_date": f"{hoy.year - 1}-{hoy.month:02d}-01"}, {"start_date": "2025-01-01", "limit": 999}]
-    datos, errores = {}, []
-    for v in variantes:
-        try:
+    async with httpx.AsyncClient(timeout=15) as c:
+        async def una(v):
             r = await c.get("https://apis.datos.gob.ar/series/api/series/",
-                            params={"ids": IPC_SERIE, "format": "json", **v}, timeout=20)
+                            params={"ids": IPC_SERIE, "format": "json", **v})
             r.raise_for_status()
-            datos.update({f[0][:4] + f[0][5:7]: float(f[1]) for f in r.json()["data"] if f[1] is not None})
-        except Exception as e:
-            errores.append(str(e))
-    if not datos:
-        raise RuntimeError("; ".join(errores) or "sin datos")
-    _ipc_cache.update(t=time.time(), datos=datos)
-    return datos
+            return {f[0][:4] + f[0][5:7]: float(f[1]) for f in r.json()["data"] if f[1] is not None}
+        res = await asyncio.gather(*(una(v) for v in variantes), return_exceptions=True)
+        datos = {}
+        for x in res:
+            if isinstance(x, dict):
+                datos.update(x)
+        if not datos:
+            _ipc_estado["error"] = f"datos.gob.ar no respondió ({type(res[0]).__name__})"
+            _ipc_estado["intento"] = time.time() - 2.5 * 3600   # reintentar en ~30 min
+            return
+        _ipc_estado["error"] = None
+        await c.post(f"{SUPABASE_URL}/rest/v1/ipc_indec?on_conflict=periodo",
+                     json=[{"periodo": p, "indice": v, "actualizado_at": datetime.now(timezone.utc).isoformat()}
+                           for p, v in datos.items()],
+                     headers=_sb({"Content-Type": "application/json",
+                                  "Prefer": "resolution=merge-duplicates,return=minimal"}))
 
 
 def _cronograma(ipc: dict) -> list:
@@ -207,7 +225,10 @@ async def humberto_estado():
         try:
             ipc = await _ipc(c)
         except Exception as e:
-            ipc, ipc_error = _ipc_cache["datos"], f"No pude leer el IPC: {e}"
+            ipc, ipc_error = {}, f"No pude leer el IPC guardado: {e}"
+        if not ipc_error and _ipc_estado["error"]:
+            ipc_error = (f"No pude actualizar el IPC ({_ipc_estado['error']}): uso lo guardado, "
+                         f"hasta {_mes_txt(max(ipc)) if ipc else '—'}.")
         ajustes = _cronograma(ipc)
         facturas = {f["periodo"]: f for f in await _facturas(c)}
 
