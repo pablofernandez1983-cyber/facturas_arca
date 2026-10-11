@@ -970,9 +970,14 @@ async function ivaCargar(silencioso) {
     return;
   }
   if (pedido !== iva.pedido) return;
+  const antes = iva.data?.job;
   iva.data = d;
   ivaRender();
-  const enCurso = d.job && IVA_EN_CURSO.includes(d.job.estado);
+  // Recién presentada y con el VEP ya leído (llega ~15 s después): si están las dos, mensaje para Ana
+  const listaJ = j => j?.estado === "presentada" && !!j.vep;
+  if (antes && antes.id === d.job?.id && !listaJ(antes) && listaJ(d.job)) ivaMensajeMama(true);
+  const esperandoVep = d.job?.estado === "presentada" && !d.job.vep && antes?.id === d.job.id;
+  const enCurso = d.job && (IVA_EN_CURSO.includes(d.job.estado) || esperandoVep);
   if (enCurso && !iva.timer) iva.timer = setInterval(() => ivaCargar(true), 4000);
   if (!enCurso && iva.timer) { clearInterval(iva.timer); iva.timer = null; }
 }
@@ -1035,7 +1040,9 @@ function ivaRender() {
   } else if (estado === "presentada") {
     h += `<div class="iva-card"><div class="ls ok">✅ DJ presentada</div>
       <div class="iva-fila"><span>Saldo a pagar</span><b>${ivaPesos(job.dj_saldo)}</b></div>
-      <div class="iva-fila"><span>Pago</span><b>${esc(job.vep || "—")}</b></div></div>`;
+      ${job.vencimiento ? `<div class="iva-fila"><span>Vence</span><b>${esc(job.vencimiento)}</b></div>` : ""}
+      <div class="iva-fila"><span>Pago</span><b>${esc(job.vep || "—")}</b></div></div>
+      <div id="ivaMama"></div>`;
   }
 
   if (archivos?.length) {
@@ -1046,7 +1053,73 @@ function ivaRender() {
   const logViejo = document.getElementById("ivaLog")?.textContent;
   document.getElementById("ivaCuerpo").innerHTML = h;
   if (job && IVA_EN_CURSO.includes(estado)) ivaLog(job.id, logViejo);
+  if (estado === "presentada") ivaMensajeMama(false);
 }
+
+// ─── Mensaje para Ana cuando están presentadas las dos DJ del período ───
+async function ivaMensajeMama(popup) {
+  const per = ivaPeriodo();
+  let dj;
+  try { dj = await api(`/api/ddjj/periodo?periodo=${per}`).then(r => r.json()); } catch (e) { return; }
+  const A = dj.ANA, S = dj.SUC;
+  if (per !== ivaPeriodo() || A?.estado !== "presentada" || S?.estado !== "presentada") return;
+  iva.textoMama = ivaTextoMama(per, A, S);
+  const el = document.getElementById("ivaMama");
+  if (el) el.innerHTML = `<button class="iva-btn" onclick="ivaMensajeMama(true)">💬 Mensaje para mamá</button>`;
+  if (!popup) return;
+  document.getElementById("mtit").textContent = "✅ Las dos DJ presentadas";
+  document.getElementById("mbody").innerHTML = `
+    <p style="font-size:13px;color:var(--sub);margin-bottom:10px">Mensaje para mandarle a tu mamá (lo podés editar):</p>
+    <textarea id="ivaTxtMama" rows="11" style="width:100%;font:inherit;font-size:14px;line-height:1.45;padding:10px;
+      border:1px solid var(--border);border-radius:10px;resize:vertical">${esc(iva.textoMama)}</textarea>`;
+  document.getElementById("mfoot").innerHTML = `
+    <button class="btn-cancel" id="ivaBtnCopiar" onclick="ivaCopiarMama()">📋 Copiar</button>
+    <button class="btn-ok" style="background:#16a34a" onclick="ivaWhatsappMama()">WhatsApp</button>`;
+  document.getElementById("overlay").classList.add("on");
+}
+
+function ivaTextoMama(per, A, S) {
+  const num = s => parseFloat(String(s || "0").replace(/\./g, "").replace(",", ".")) || 0;
+  const plata = n => "$ " + n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const vep = j => /^VEP \d+$/.test(j.vep || "") ? ` (${j.vep})` : "";
+  const venc = v => {   // "20/10/2026" → "el martes 20/10"
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v || "");
+    if (!m) return null;
+    const dia = new Date(+m[3], +m[2] - 1, +m[1]).toLocaleDateString("es-AR", { weekday: "long" });
+    return `el ${dia} ${m[1]}/${m[2]}`;
+  };
+  const mes = NOMBRES_MES[+per.slice(4) - 1].toLowerCase() + " " + per.slice(0, 4);
+  let t = `Hola ma! Ya presenté las declaraciones de IVA de ${mes} ✅
+
+` +
+    `A pagar:
+• Vos: ${plata(num(A.dj_saldo))}${vep(A)}
+• Sucesión: ${plata(num(S.dj_saldo))}${vep(S)}
+` +
+    `Total: ${plata(num(A.dj_saldo) + num(S.dj_saldo))}
+
+`;
+  const vA = venc(A.vencimiento), vS = venc(S.vencimiento);
+  if (vA && vA === vS) t += `Vence ${vA}.`;
+  else if (vA || vS) t += `Vencimientos: vos ${vA || "(ver ARCA)"}, Sucesión ${vS || "(ver ARCA)"}.`;
+  if (vep(A) && vep(S)) t += ` Los VEP ya están en PagoMisCuentas para pagar.`;
+  return t.trim();
+}
+
+function ivaTextoActual() { return document.getElementById("ivaTxtMama")?.value || iva.textoMama || ""; }
+
+async function ivaCopiarMama() {
+  const t = ivaTextoActual();
+  let ok = false;
+  try { await navigator.clipboard.writeText(t); ok = true; } catch (e) {
+    const ta = document.getElementById("ivaTxtMama");   // plan B para navegadores sin Clipboard API
+    if (ta) { ta.select(); ok = document.execCommand("copy"); }
+  }
+  const b = document.getElementById("ivaBtnCopiar");
+  if (b) b.textContent = ok ? "✅ Copiado" : "❌ No pude copiar";
+}
+
+function ivaWhatsappMama() { window.open("https://wa.me/?text=" + encodeURIComponent(ivaTextoActual()), "_blank"); }
 
 function ivaAlquibot(a, gravado) {
   if (!a || a.neto_emitido == null) return "";

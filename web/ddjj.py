@@ -145,6 +145,18 @@ async def ddjj_estado(contrib: str, periodo: str):
         }
 
 
+@router.get("/api/ddjj/periodo")
+async def ddjj_periodo(periodo: str):
+    """Las DJ de Ana y la Sucesión de un período (para el mensaje a Ana cuando están las dos)."""
+    if not _validos("ANA", periodo):
+        return JSONResponse(status_code=400, content={"error": "período inválido"})
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.get(f"{SUPABASE_URL}/rest/v1/ddjj_iva?periodo=eq.{periodo}"
+                        f"&select=contrib,estado,dj_saldo,vep,vencimiento", headers=_sb())
+    r.raise_for_status()
+    return {f["contrib"]: f for f in r.json()}
+
+
 @router.post("/api/ddjj/accion")
 async def ddjj_accion(request: Request):
     """Body: {contrib, periodo, accion: preparar|finalizar|presentar|verificado, ...}"""
@@ -248,7 +260,7 @@ def _runner_ok(request: Request) -> bool:
 
 
 CAMPOS_RUNNER = {"estado", "monto_gravado", "monto_nc", "libro_debito", "libro_credito", "dj_debito",
-                 "dj_credito", "dj_saldo", "comparacion", "coincide", "vep", "mensaje", "esperando", "aprobado"}
+                 "dj_credito", "dj_saldo", "comparacion", "coincide", "vep", "mensaje", "esperando", "aprobado", "vencimiento"}
 
 
 @router.post("/runner/ddjj/log")
