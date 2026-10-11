@@ -1001,10 +1001,19 @@ function ivaRender() {
     h += `<div class="iva-card"><h3>${IVA_NOMBRE[iva.contrib]} · ${perTxt}</h3>
       <p style="font-size:14px;line-height:1.5;color:var(--sub)">El robot importa el Libro de Ventas desde ARCA y lee
       el neto gravado. <b>No finaliza ni presenta nada</b>: después te muestra los montos para que confirmes.</p>
-      ${ivaAlquibot(alquibot, null)}</div>
-      <button class="iva-btn" onclick="ivaAccion('preparar')">1 · Revisar libro</button>`;
+      ${ivaAlquibot(alquibot, null)}</div>`;
+    if (alquibot?.neto_emitido && !alquibot.pendientes) {
+      h += `<div class="iva-nota info">Si el neto del libro da igual a lo facturado en AlquiBot y la DJ coincide con
+        el libro, <b>finaliza el libro, presenta la DJ y genera el VEP</b> de una, con un solo login.
+        Si algo no da, frena en ese paso y seguís como siempre.</div>
+        <button class="iva-btn final" onclick="ivaAccion('todo')">▶ Hacer todo</button>
+        <button class="iva-btn sec" onclick="ivaAccion('preparar')">Solo revisar el libro</button>`;
+    } else {
+      h += `<button class="iva-btn" onclick="ivaAccion('preparar')">1 · Revisar libro</button>`;
+    }
   } else if (IVA_EN_CURSO.includes(estado)) {
-    const que = { preparando: "Revisando el libro", finalizando: "Finalizando el libro", presentando: "Presentando la DJ" }[estado];
+    const que = { preparando: "Revisando el libro", finalizando: "Finalizando el libro", presentando: "Presentando la DJ" }[estado]
+      + (job.fase_en_curso === "todo" ? " (todo de una)" : "");
     h += `<div class="iva-card"><div class="ls r">⏳ ${que}...</div><div class="log" id="ivaLog">Esperando al robot...</div></div>`;
   } else if (estado === "revisar") {
     const grav = +job.monto_gravado;
@@ -1072,6 +1081,14 @@ async function ivaAccion(accion) {
   const job = iva.data.job, per = ivaPeriodo(), perTxt = `${per.slice(4)}/${per.slice(0, 4)}`;
   const quien = IVA_NOMBRE[iva.contrib];
   if (accion === "finalizar" && !confirm(`⚠️ ${quien} · ${perTxt}\n\nVa a FINALIZAR la registración del Libro IVA con neto gravado ${ivaPesosNum(+job.monto_gravado)}.\nNo se puede deshacer.\n\n¿Continuar?`)) return;
+  if (accion === "todo" && !confirm(`▶ ${quien} · ${perTxt}
+
+Facturado en AlquiBot: ${ivaPesosNum(iva.data.alquibot.neto_emitido)} neto.
+
+Si el libro y la DJ coinciden con eso, el robot FINALIZA el libro, PRESENTA la DJ y genera el VEP sin volver a preguntar.
+Si algo no coincide, frena antes.
+
+¿Arranco?`)) return;
   if (accion === "presentar" && !confirm(`🔴 PUNTO DE NO RETORNO\n\n${quien} · ${perTxt}\nDébito fiscal: $ ${job.dj_debito}\nSaldo a pagar: $ ${job.dj_saldo}\n\nVa a PRESENTAR la DJ ante ARCA y generar el VEP.\n¿Estás seguro?`)) return;
   const body = { contrib: iva.contrib, periodo: per, accion };
   if (accion === "presentar" && !job.coincide) body.confirmo_diferencia = !!document.getElementById("ivaAcepto")?.checked;

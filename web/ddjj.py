@@ -10,6 +10,9 @@ Cada acción dispara el workflow ddjj.yml del repo privado RUNNER_REPO
 (scripts/emitir_hechizo.py tiene el mismo esquema). El robot reporta por /runner/ddjj/*.
 Las acciones irreversibles solo se permiten desde el estado anterior y le pasan al robot los
 montos que Pablo vio en el celu: si ARCA muestra otra cosa, el robot frena sin tocar nada.
+
+`todo` hace las tres fases en un solo login: el robot recibe el neto facturado en AlquiBot y solo
+sigue si el libro y la DJ coinciden con eso; si no, frena en revisar/listo_presentar como el paso a paso.
 """
 
 import os
@@ -143,7 +146,7 @@ async def ddjj_estado(contrib: str, periodo: str):
 
 @router.post("/api/ddjj/accion")
 async def ddjj_accion(request: Request):
-    """Body: {contrib, periodo, accion: preparar|finalizar|presentar|verificado, ...}"""
+    """Body: {contrib, periodo, accion: preparar|finalizar|presentar|todo|verificado, ...}"""
     body = await request.json()
     contrib, periodo, accion = body.get("contrib"), str(body.get("periodo", "")), body.get("accion")
     if not _validos(contrib, periodo):
@@ -173,6 +176,13 @@ async def ddjj_accion(request: Request):
             if estado not in {"nuevo", "error", "revisar"}:
                 return JSONResponse(status_code=409, content={"error": f"No se puede preparar en estado '{estado}'"})
             esperado, nuevo = {}, "preparando"
+        elif accion == "todo":
+            if estado not in {"nuevo", "error"}:
+                return JSONResponse(status_code=409, content={"error": f"No se puede arrancar todo en estado '{estado}'"})
+            alq = await _alquibot(c, contrib, periodo)
+            if not alq.get("neto_emitido") or alq.get("pendientes"):
+                return JSONResponse(status_code=409, content={"error": "AlquiBot no tiene todo emitido este mes: usá el paso a paso"})
+            esperado, nuevo = {"alquibot_neto": alq["neto_emitido"]}, "preparando"
         elif accion == "finalizar":
             if estado != "revisar" or not job.get("monto_gravado"):
                 return JSONResponse(status_code=409, content={"error": "Primero hay que revisar el libro"})
