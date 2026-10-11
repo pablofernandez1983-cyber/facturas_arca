@@ -251,6 +251,35 @@
   #vHz .btn-selall { color: var(--hz); }
   #vHz .btn-emit { background: var(--hz); }
 
+  /* ─── HumbertoBot ─── */
+  #vHb { --hb: #2f6f4f; --hb-bg: #f2f7f4; --hb-soft: #d9ebe1; background: var(--hb-bg); min-height: 100vh; }
+  #vHb .hz-head { background: var(--hb-soft); color: #1f3d2e; }
+  #vHb .hz-head .ph { height: 64px; width: 64px; border-radius: 50%; background: #fff; display: flex;
+                      align-items: center; justify-content: center; font-size: 30px; flex-shrink: 0; }
+  #vHb .alq-tabs button.on { color: var(--hb); }
+  #vHb .btn-emit { background: var(--hb); }
+  .hb { padding: 12px 16px 120px; }
+  .hb-mes { background: #fff; border-radius: 12px; padding: 11px 14px; margin-bottom: 8px; display: flex;
+            align-items: center; gap: 10px; border: 2px solid transparent; }
+  .hb-mes.sel { border-color: var(--hb); }
+  .hb-mes .m { flex: 1; min-width: 0; }
+  .hb-mes .m b { display: block; font-size: 15px; }
+  .hb-mes .m small { color: var(--sub); font-size: 12px; }
+  .hb-mes .monto { font-weight: 800; font-size: 15px; text-align: right; }
+  .hb-mes .monto button { border: none; background: none; color: var(--hb); font-size: 11px; font-weight: 700;
+                          padding: 2px 0 0; cursor: pointer; display: block; margin-left: auto; }
+  .hb-chk { width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--border); flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center; color: #fff; font-size: 15px; cursor: pointer; }
+  .hb-mes.sel .hb-chk { background: var(--hb); border-color: var(--hb); }
+  .hb-tag { font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 20px; white-space: nowrap; }
+  .hb-tag.ok { background: #dcfce7; color: #166534; } .hb-tag.pend { background: #fef3c7; color: #92400e; }
+  .hb-tag.mal { background: #fee2e2; color: #991b1b; } .hb-tag.cur { background: #dbeafe; color: #1e40af; }
+  .hb-prev img { width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 8px 0; }
+  .hb-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .hb-tabla td, .hb-tabla th { padding: 7px 4px; border-bottom: 1px solid var(--border); text-align: left; }
+  .hb-tabla th { font-size: 11px; color: var(--sub); text-transform: uppercase; letter-spacing: .04em; }
+  .hb-tabla td.n { text-align: right; font-weight: 700; white-space: nowrap; }
+
   /* ─── DDJJ IVA ─── */
   .iva { padding: 12px 16px 120px; }
   .iva-sel { display: flex; gap: 8px; align-items: center; }
@@ -420,6 +449,11 @@
         <img src="/static/hechizobot.png" onerror="this.onerror=null;this.src='/static/hechizo.png'" alt="HechizoBot">
         <b>HechizoBot</b><small>Facturas de Tienda Nube</small>
       </button>
+      <button class="app" onclick="irA('humberto')">
+        <img src="/static/humbertobot.png" alt="HumbertoBot"
+             onerror="this.outerHTML='<div class=&quot;ph&quot; style=&quot;font-size:48px;border-style:solid&quot;>🏠</div>'">
+        <b>HumbertoBot</b><small>Alquiler Humberto Primo</small>
+      </button>
     </div>
   </div>
 </div>
@@ -454,6 +488,24 @@
   </div>
   <div class="barra">
     <button class="btn-emit" id="hzBtn" disabled onclick="hzAbrirModal()">Elegí órdenes para facturar</button>
+  </div>
+</div>
+
+<!-- ─── HumbertoBot ─── -->
+<div class="vista" id="vHb">
+  <div class="hz-head">
+    <button class="btn-home" onclick="irA('')" title="Inicio">‹</button>
+    <img src="/static/humbertobot.png" alt="HumbertoBot" style="height:64px;width:64px;border-radius:50%"
+         onerror="this.outerHTML='<div class=&quot;ph&quot;>🏠</div>'">
+    <h1>HumbertoBot<br><small style="font-weight:600;font-size:12px">Humberto Primo 2031 7A</small></h1>
+  </div>
+  <div class="alq-tabs">
+    <button id="hbTabFac" class="on" onclick="hbTab('fac')">Facturas</button>
+    <button id="hbTabCon" onclick="hbTab('con')">Contrato</button>
+  </div>
+  <div class="hb" id="hbCuerpo"><div class="vacio">Cargando...</div></div>
+  <div class="barra" id="hbBarra">
+    <button class="btn-emit" id="hbBtn" disabled onclick="hbEmitir()">Elegí facturas para emitir</button>
   </div>
 </div>
 
@@ -907,7 +959,7 @@ function esc(s) {
 if (pinGuardado()) init();
 
 // ─── Navegación entre secciones ──────────────────────────────────────────
-const VISTAS = { "": "vHome", "alquileres": "vAlq", "hechizo": "vHz" };
+const VISTAS = { "": "vHome", "alquileres": "vAlq", "hechizo": "vHz", "humberto": "vHb" };
 function irA(seccion) {
   if (seccion) location.hash = "#" + seccion;
   else { history.replaceState(null, "", location.pathname); mostrarVista(); }
@@ -919,6 +971,8 @@ function mostrarVista() {
   document.querySelectorAll(".vista").forEach(v => v.classList.toggle("on", v.id === id));
   window.scrollTo(0, 0);
   if (id === "vHz" && pinGuardado()) hzEntrar();
+  if (id === "vHb" && pinGuardado()) hbCargar();
+  if (id !== "vHb" && hb.timer) { clearInterval(hb.timer); hb.timer = null; }
 }
 window.addEventListener("hashchange", mostrarVista);
 
@@ -1190,6 +1244,231 @@ async function ivaAbrir(path) {
   try {
     const r = await api(`/api/ddjj/archivo?path=${encodeURIComponent(path)}`);
     const url = URL.createObjectURL(await r.blob());
+    if (w) w.location = url; else location.href = url;
+  } catch (e) { if (w) w.close(); alert("No pude abrir el archivo"); }
+}
+
+// ─── HumbertoBot ─────────────────────────────────────────────────────────
+var hb = { data: null, tab: "fac", sel: new Set(), timer: null, imgs: {} };
+const HB_EN_CURSO = ["en_cola", "emitiendo", "esperando_ok", "confirmando"];
+const hbPesos = n => n == null ? "—" : "$ " + Number(n).toLocaleString("es-AR",
+  { minimumFractionDigits: Number.isInteger(Number(n)) ? 0 : 2, maximumFractionDigits: 2 });
+
+function hbTab(t) {
+  hb.tab = t;
+  document.getElementById("hbTabFac").classList.toggle("on", t === "fac");
+  document.getElementById("hbTabCon").classList.toggle("on", t === "con");
+  document.getElementById("hbBarra").style.display = t === "fac" ? "" : "none";
+  hbRender();
+}
+
+async function hbCargar(silencioso) {
+  if (!silencioso && !hb.data) document.getElementById("hbCuerpo").innerHTML = '<div class="vacio">Cargando...</div>';
+  try {
+    const r = await api("/api/humberto");
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.status);
+    hb.data = d;
+  } catch (e) {
+    document.getElementById("hbCuerpo").innerHTML = `<div class="vacio">No pude cargar: ${esc(e.message)}</div>`;
+    return;
+  }
+  const facs = hb.data.meses.map(m => m.factura).filter(Boolean);
+  hb.sel.forEach(p => { const f = facs.find(x => x.periodo === p); if (f && !["pendiente", "error"].includes(f.estado)) hb.sel.delete(p); });
+  hbRender();
+  const enCurso = facs.some(f => HB_EN_CURSO.includes(f.estado)) || hb.data.robot_ocupado;
+  if (enCurso && !hb.timer) hb.timer = setInterval(() => hbCargar(true), 4000);
+  if (!enCurso && hb.timer) { clearInterval(hb.timer); hb.timer = null; }
+}
+
+function hbRender() {
+  if (!hb.data) return;
+  document.getElementById("hbCuerpo").innerHTML = hb.tab === "fac" ? hbFacturas() : hbContrato();
+  if (hb.tab === "fac") hbPostRender();
+  hbBoton();
+}
+
+function hbAviso() {
+  const d = hb.data, a = d.ajustes.find(x => x.estado === "parcial");
+  const ult = [...d.ajustes].reverse().find(x => x.estado === "aplicado");
+  let h = "";
+  if (d.ipc_error) h += `<div class="iva-nota mal">${esc(d.ipc_error)}</div>`;
+  if (a) h += `<div class="iva-nota info">⏳ <b>Ajuste de ${esc(a.mes)}</b>: falta el IPC de ${esc(a.falta.join(" y "))}
+      (sale a ${esc(a.sale)}). Con lo publicado va <b>+${a.variacion_parcial.toLocaleString("es-AR")}%</b>
+      (≈ ${hbPesos(a.valor_parcial)}). ${esc(a.mes.split(" ")[0])} no se puede facturar hasta que salga.</div>`;
+  else if (ult && ult.periodo === d.actual) {
+    const pago = d.meses.find(m => m.periodo === ult.periodo)?.factura?.monto;
+    const anterior = d.meses.find(m => m.periodo === hbMesAnt(ult.periodo))?.factura?.monto;
+    h += `<div class="iva-nota ok">📢 <b>Ya salió el IPC</b>: desde ${esc(ult.mes)} el alquiler es
+      <b>${hbPesos(ult.valor)}</b> (+${ult.variacion.toLocaleString("es-AR")}%). Avisale a ${esc(d.contrato.inquilino.split(" ")[0])}
+      ${anterior ? `y que te transfiera la diferencia de ${esc(ult.mes.split(" ")[0])}: <b>${hbPesos(ult.valor - anterior)}</b> (pagó ${hbPesos(anterior)})` : ""}.</div>`;
+  }
+  return h;
+}
+
+function hbMesAnt(p) { const y = +p.slice(0, 4), m = +p.slice(4); return m === 1 ? `${y - 1}12` : `${y}${String(m - 1).padStart(2, "0")}`; }
+
+function hbFacturas() {
+  const d = hb.data;
+  let h = hbAviso();
+  const esperando = d.meses.map(m => m.factura).find(f => f && f.estado === "esperando_ok" && f.esperando);
+  const enCurso = d.meses.some(m => m.factura && HB_EN_CURSO.includes(m.factura.estado));
+  if (esperando) {
+    const m = d.meses.find(x => x.factura?.id === esperando.id);
+    h += `<div class="iva-card hb-prev"><h3>Vista previa · ${esc(m.mes)}</h3>
+      <div class="iva-fila grande"><span>Importe</span><b>${hbPesos(esperando.monto)}</b></div>
+      <div id="hbPrevImg"><div class="vacio" style="padding:14px">Cargando captura...</div></div>
+      <button class="iva-btn final" onclick="hbOk(${esperando.id}, true)">✅ Emitir esta factura</button>
+      <button class="iva-btn sec" onclick="hbOk(${esperando.id}, false)">Saltear</button></div>`;
+  }
+  if (enCurso || d.robot_ocupado) h += `<div class="iva-card"><div class="ls r">⏳ Robot trabajando...</div><div class="log" id="hbLog">Esperando al robot...</div></div>`;
+
+  for (const m of [...d.meses].reverse()) {
+    const f = m.factura, est = f ? f.estado : "sin";
+    const elegible = f ? ["pendiente", "error"].includes(est) && f.monto : !!m.valor_contrato;
+    const bloqueado = !f?.monto && !m.valor_contrato;
+    let tag;
+    if (est === "emitida") tag = `<span class="hb-tag ok">${f.nro ? "N° " + esc(f.nro) : "Emitida"}</span>`;
+    else if (est === "verificar") tag = `<span class="hb-tag mal">Verificar</span>`;
+    else if (HB_EN_CURSO.includes(est)) tag = `<span class="hb-tag cur">${est === "esperando_ok" ? "Esperando OK" : "En curso"}</span>`;
+    else if (bloqueado) tag = `<span class="hb-tag pend">Falta IPC</span>`;
+    else tag = `<span class="hb-tag pend">${est === "error" ? "Error" : "Pendiente"}</span>`;
+    const monto = f?.monto ?? (m.valor_contrato && Math.round(m.valor_contrato));
+    const editable = !f || ["pendiente", "error"].includes(est);
+    const pdf = (m.archivos || []).find(a => a.endsWith(".pdf"));
+    h += `<div class="hb-mes ${hb.sel.has(m.periodo) ? "sel" : ""}">
+      ${elegible ? `<div class="hb-chk" onclick="hbToggle('${m.periodo}')">${hb.sel.has(m.periodo) ? "✓" : ""}</div>` : ""}
+      <div class="m"><b>${esc(m.mes)}</b>
+        <small>${m.valor_contrato ? "Contrato " + hbPesos(m.valor_contrato) : "Contrato: falta IPC"}${f?.nota ? " · " + esc(f.nota) : ""}</small>
+        ${f?.mensaje ? `<small style="display:block;color:${est === "verificar" || est === "error" ? "var(--danger)" : "var(--sub)"}">${esc(f.mensaje)}</small>` : ""}
+        ${pdf ? `<button class="hb-tag ok" style="border:none;margin-top:4px;cursor:pointer" onclick="hbAbrir('${esc(pdf)}')">📄 PDF</button>` : ""}
+        ${est === "verificar" ? `<div style="display:flex;gap:6px;margin-top:6px">
+          <button class="hb-tag ok" style="border:none" onclick="hbVerificado(${f.id}, true)">Sí, se emitió</button>
+          <button class="hb-tag mal" style="border:none" onclick="hbVerificado(${f.id}, false)">No se emitió</button></div>` : ""}
+      </div>
+      <div class="monto">${monto ? hbPesos(monto) : "—"}${tag ? "<br>" + tag : ""}
+        ${editable ? `<button onclick="hbMonto('${m.periodo}')">editar</button>` : ""}</div>
+    </div>`;
+  }
+  return h;
+}
+
+function hbContrato() {
+  const d = hb.data, c = d.contrato;
+  const f = s => s.split("-").reverse().join("/");
+  let h = hbAviso() + `<div class="iva-card"><h3>Contrato</h3>
+    <div class="iva-fila"><span>Inmueble</span><b>${esc(c.inmueble)}</b></div>
+    <div class="iva-fila"><span>Inquilino</span><b>${esc(c.inquilino)}</b></div>
+    <div class="iva-fila"><span>DNI</span><b>${esc(c.dni)}</b></div>
+    <div class="iva-fila"><span>Vigencia</span><b>${f(c.inicio)} → ${f(c.fin)}</b></div>
+    <div class="iva-fila"><span>Valor inicial</span><b>${hbPesos(c.valor_inicial)}</b></div>
+    <div class="iva-fila"><span>Ajuste</span><b>Cada ${c.cada_meses} meses · ${esc(c.indice)}</b></div>
+    <div class="iva-fila grande"><span>Valor vigente</span><b>${d.valor_vigente ? hbPesos(d.valor_vigente) : "falta IPC"}</b></div>
+    <div class="iva-fila"><span>Último IPC publicado</span><b>${esc(d.ipc_ultimo || "—")}</b></div></div>
+    <div class="iva-card"><h3>Ajustes</h3><table class="hb-tabla">
+    <tr><th>Desde</th><th>IPC de</th><th class="n">Var.</th><th class="n">Alquiler</th></tr>`;
+  h += `<tr><td>${esc(f(c.inicio).slice(3))}</td><td>—</td><td class="n">—</td><td class="n">${hbPesos(c.valor_inicial)}</td></tr>`;
+  for (const a of d.ajustes) {
+    const ipc = a.meses_ipc.map(x => x.slice(0, 3)).join("-");
+    let v, val;
+    if (a.estado === "aplicado") { v = "+" + a.variacion.toLocaleString("es-AR") + "%"; val = hbPesos(a.valor); }
+    else if (a.estado === "parcial") { v = `≈+${a.variacion_parcial.toLocaleString("es-AR")}%`; val = `<span style="color:var(--sub)">falta ${esc(a.falta.map(x => x.split(" ")[0].slice(0, 3)).join("-"))}</span>`; }
+    else { v = "—"; val = `<span style="color:var(--sub)">IPC ${esc(a.meses_ipc[2].split(" ")[0].toLowerCase())} sale a med. de ${esc(MESES_SIG(a.periodo))}</span>`; }
+    h += `<tr${a.periodo === d.ajuste_vigente?.periodo ? ' style="background:#f0fdf4"' : ""}><td>${esc(a.mes.slice(0, 3) + " " + a.mes.slice(-2))}</td><td>${ipc}</td><td class="n">${v}</td><td class="n">${val}</td></tr>`;
+  }
+  h += `</table><p style="font-size:12px;color:var(--sub);margin-top:8px;line-height:1.4">Cada ajuste usa la variación del IPC
+    de los 3 meses anteriores (ej. julio: índice de junio ÷ marzo). Los valores son exactos, sin redondear; lo que
+    facturás cada mes se edita en Facturas.</p></div>`;
+  return h;
+}
+
+function MESES_SIG(p) { return NOMBRES_MES[+p.slice(4) - 1].toLowerCase(); }   // el IPC del mes anterior sale a mediados de este
+
+async function hbPostRender() {
+  const d = hb.data;
+  const esperando = d.meses.find(m => m.factura?.estado === "esperando_ok" && m.factura.esperando);
+  if (esperando) {
+    const path = (esperando.archivos || []).find(a => a.endsWith("vista_previa.png"));
+    const el = document.getElementById("hbPrevImg");
+    if (path && el) {
+      const clave = path + "|" + esperando.factura.actualizado_at;
+      if (!hb.imgs[clave]) {
+        try { hb.imgs[clave] = URL.createObjectURL(await (await api(`/api/humberto/archivo?path=${encodeURIComponent(path)}`)).blob()); }
+        catch (e) { hb.imgs[clave] = null; }
+      }
+      const el2 = document.getElementById("hbPrevImg");
+      if (el2) el2.innerHTML = hb.imgs[clave] ? `<img src="${hb.imgs[clave]}" onclick="window.open(this.src)">` : "No pude cargar la captura";
+    }
+  }
+  if (document.getElementById("hbLog")) {
+    const logs = await api("/api/humberto/progreso").then(r => r.json()).catch(() => []);
+    const el = document.getElementById("hbLog");
+    if (el && Array.isArray(logs) && logs.length) { el.textContent = logs.map(l => l.mensaje).join("\n"); el.scrollTop = el.scrollHeight; }
+  }
+}
+
+function hbBoton() {
+  const b = document.getElementById("hbBtn"), n = hb.sel.size;
+  const ocupado = hb.data?.robot_ocupado || hb.data?.meses.some(m => m.factura && HB_EN_CURSO.includes(m.factura.estado));
+  b.disabled = !n || ocupado;
+  b.textContent = ocupado ? "Robot trabajando..." : n ? `Emitir ${n} factura${n > 1 ? "s" : ""}` : "Elegí facturas para emitir";
+}
+
+function hbToggle(p) { hb.sel.has(p) ? hb.sel.delete(p) : hb.sel.add(p); hbRender(); }
+
+async function hbMonto(p) {
+  const m = hb.data.meses.find(x => x.periodo === p);
+  const actual = m.factura?.monto ?? m.valor_contrato ?? "";
+  const v = prompt(`Monto a facturar de ${m.mes} (pesos, sin centavos).\nContrato: ${m.valor_contrato ? hbPesos(m.valor_contrato) : "falta IPC"}`,
+                   actual ? Math.round(actual) : "");
+  if (v == null) return;
+  const monto = Math.round(Number(String(v).replace(/[$.\s]/g, "").replace(",", ".")));
+  if (!monto || monto <= 0) return alert("Monto inválido");
+  const r = await api("/api/humberto/monto", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ periodo: p, monto }) }).then(r => r.json()).catch(e => ({ error: e.message }));
+  if (r.error) alert("❌ " + r.error);
+  hbCargar();
+}
+
+async function hbEmitir() {
+  const meses = hb.data.meses.filter(m => hb.sel.has(m.periodo));
+  const montoDe = m => m.factura?.monto ?? Math.round(m.valor_contrato);
+  const lista = meses.map(m => `• ${m.mes}: ${hbPesos(montoDe(m))}`).join("\n");
+  if (!confirm(`Emitir ${meses.length} factura${meses.length > 1 ? "s" : ""} C a ${hb.data.contrato.inquilino}:\n\n${lista}\n\n` +
+               `Antes de confirmar cada una vas a ver la vista previa acá y dar el OK.`)) return;
+  document.getElementById("hbBtn").disabled = true;
+  for (const m of meses.filter(m => !m.factura)) {   // meses sin fila: se factura el valor del contrato
+    await api("/api/humberto/monto", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ periodo: m.periodo, monto: montoDe(m) }) });
+  }
+  const r = await api("/api/humberto/emitir", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ periodos: [...hb.sel] }) }).then(r => r.json()).catch(e => ({ error: e.message }));
+  if (r.error) alert("❌ " + r.error);
+  hb.sel.clear();
+  hbCargar();
+}
+
+async function hbOk(id, emitir) {
+  if (emitir && !confirm("🔴 Se emite la factura en ARCA. No se puede deshacer.\n\n¿Emitir?")) return;
+  document.querySelectorAll("#hbCuerpo .iva-btn").forEach(b => b.disabled = true);
+  const r = await api("/api/humberto/ok", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, emitir }) }).then(r => r.json()).catch(e => ({ error: e.message }));
+  if (r.error) alert("❌ " + r.error);
+  hbCargar();
+}
+
+async function hbVerificado(id, emitida) {
+  if (!confirm(emitida ? "¿Confirmás que la factura figura emitida en ARCA?" : "¿Confirmás que NO figura emitida en ARCA?")) return;
+  const r = await api("/api/humberto/verificado", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, emitida }) }).then(r => r.json()).catch(e => ({ error: e.message }));
+  if (r.error) alert("❌ " + r.error);
+  hbCargar();
+}
+
+async function hbAbrir(path) {
+  const w = window.open("", "_blank");
+  try {
+    const url = URL.createObjectURL(await (await api(`/api/humberto/archivo?path=${encodeURIComponent(path)}`)).blob());
     if (w) w.location = url; else location.href = url;
   } catch (e) { if (w) w.close(); alert("No pude abrir el archivo"); }
 }
