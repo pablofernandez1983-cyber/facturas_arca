@@ -11,8 +11,9 @@ Cada acción dispara el workflow ddjj.yml del repo privado RUNNER_REPO
 Las acciones irreversibles solo se permiten desde el estado anterior y le pasan al robot los
 montos que Pablo vio en el celu: si ARCA muestra otra cosa, el robot frena sin tocar nada.
 
-`todo` hace las tres fases en un solo login: el robot recibe el neto facturado en AlquiBot y solo
-sigue si el libro y la DJ coinciden con eso; si no, frena en revisar/listo_presentar como el paso a paso.
+En cada pausa el robot queda conectado a ARCA unos minutos (`esperando` = la acción que espera):
+si Pablo confirma mientras tanto, la aprobación se le pasa por `aprobado` y sigue en la misma
+sesión; si no, la confirmación dispara una corrida nueva como siempre.
 """
 
 import os
@@ -146,7 +147,7 @@ async def ddjj_estado(contrib: str, periodo: str):
 
 @router.post("/api/ddjj/accion")
 async def ddjj_accion(request: Request):
-    """Body: {contrib, periodo, accion: preparar|finalizar|presentar|todo|verificado, ...}"""
+    """Body: {contrib, periodo, accion: preparar|finalizar|presentar|verificado, ...}"""
     body = await request.json()
     contrib, periodo, accion = body.get("contrib"), str(body.get("periodo", "")), body.get("accion")
     if not _validos(contrib, periodo):
@@ -165,24 +166,10 @@ async def ddjj_accion(request: Request):
                 "mensaje": None if presentada else "Verificado: no se presentó. Podés volver a intentarlo."})
             return {"ok": True}
 
-        try:
-            runs = await _runs(c)
-        except Exception as e:
-            return JSONResponse(status_code=502, content={"error": str(e)})
-        if any(x["status"] != "completed" for x in runs):
-            return JSONResponse(status_code=409, content={"error": "El robot de IVA ya está trabajando. Esperá a que termine."})
-
         if accion == "preparar":
             if estado not in {"nuevo", "error", "revisar"}:
                 return JSONResponse(status_code=409, content={"error": f"No se puede preparar en estado '{estado}'"})
             esperado, nuevo = {}, "preparando"
-        elif accion == "todo":
-            if estado not in {"nuevo", "error"}:
-                return JSONResponse(status_code=409, content={"error": f"No se puede arrancar todo en estado '{estado}'"})
-            alq = await _alquibot(c, contrib, periodo)
-            if not alq.get("neto_emitido") or alq.get("pendientes"):
-                return JSONResponse(status_code=409, content={"error": "AlquiBot no tiene todo emitido este mes: usá el paso a paso"})
-            esperado, nuevo = {"alquibot_neto": alq["neto_emitido"]}, "preparando"
         elif accion == "finalizar":
             if estado != "revisar" or not job.get("monto_gravado"):
                 return JSONResponse(status_code=409, content={"error": "Primero hay que revisar el libro"})
@@ -196,13 +183,30 @@ async def ddjj_accion(request: Request):
         else:
             return JSONResponse(status_code=400, content={"error": "acción desconocida"})
 
+        try:
+            runs = await _runs(c)
+        except Exception as e:
+            return JSONResponse(status_code=502, content={"error": str(e)})
+        vivo = any(x["status"] != "completed" for x in runs)
+        if vivo and job and job.get("esperando") == accion:
+            # El robot sigue logueado esperando este OK: se lo pasamos y sigue sin arrancar de cero
+            await _actualizar(c, job["id"], {"aprobado": {"accion": accion, "esperado": esperado},
+                                             "esperando": None, "estado": nuevo,
+                                             "fase_en_curso": accion, "mensaje": None})
+            return {"ok": True, "job_id": job["id"], "misma_sesion": True}
+        if vivo:
+            msg = ("El robot está esperando que confirmes el paso anterior." if job and job.get("esperando")
+                   else "El robot de IVA ya está trabajando. Esperá a que termine.")
+            return JSONResponse(status_code=409, content={"error": msg})
+
         if not job:
             r = await c.post(f"{SUPABASE_URL}/rest/v1/ddjj_iva", json={"contrib": contrib, "periodo": periodo},
                              headers=_sb({"Content-Type": "application/json", "Prefer": "return=representation"}))
             r.raise_for_status()
             job = r.json()[0]
         await c.delete(f"{SUPABASE_URL}/rest/v1/ddjj_log?job_id=eq.{job['id']}", headers=_sb())
-        await _actualizar(c, job["id"], {"estado": nuevo, "fase_en_curso": accion, "mensaje": None})
+        await _actualizar(c, job["id"], {"estado": nuevo, "fase_en_curso": accion, "mensaje": None,
+                                         "esperando": None, "aprobado": None})
 
         r = await c.post(f"https://api.github.com/repos/{RUNNER_REPO}/actions/workflows/{WORKFLOW_FILE}/dispatches",
                          headers=_gh(),
@@ -244,7 +248,7 @@ def _runner_ok(request: Request) -> bool:
 
 
 CAMPOS_RUNNER = {"estado", "monto_gravado", "monto_nc", "libro_debito", "libro_credito", "dj_debito",
-                 "dj_credito", "dj_saldo", "comparacion", "coincide", "vep", "mensaje"}
+                 "dj_credito", "dj_saldo", "comparacion", "coincide", "vep", "mensaje", "esperando", "aprobado"}
 
 
 @router.post("/runner/ddjj/log")
@@ -270,6 +274,17 @@ async def runner_ddjj_actualizar(request: Request):
     async with httpx.AsyncClient(timeout=15) as c:
         await _actualizar(c, int(body["job_id"]), campos)
     return {"ok": True}
+
+
+@router.post("/runner/ddjj/aprobacion")
+async def runner_ddjj_aprobacion(request: Request):
+    """El robot en pausa pregunta si Pablo ya confirmó (lo consulta cada pocos segundos)."""
+    if not _runner_ok(request):
+        return JSONResponse(status_code=401, content={"error": "token"})
+    body = await request.json()
+    async with httpx.AsyncClient(timeout=15) as c:
+        job = await _job_por_id(c, int(body["job_id"]))
+    return {"aprobado": job and job.get("aprobado")}
 
 
 @router.post("/runner/ddjj/archivo")
