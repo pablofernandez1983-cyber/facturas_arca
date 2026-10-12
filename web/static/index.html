@@ -1192,7 +1192,8 @@ function ivaAlquibot(a, gravado) {
   if (a.pendientes) h += `<div class="iva-nota mal" style="margin-top:8px">⚠ Hay ${a.pendientes} factura${a.pendientes > 1 ? "s" : ""} de AlquiBot de este mes sin emitir</div>`;
   if (gravado != null) {
     const dif = gravado - a.neto_emitido;
-    h += Math.abs(dif) < 1
+    // 1 centavo por factura: ARCA redondea cada comprobante (Sucesión 09/2026: 10 facturas suman ,44 y el libro ,43)
+    h += Math.abs(dif) <= 0.01 * Math.max(1, a.emitidas || 0) + 1e-6
       ? `<div class="iva-nota ok" style="margin-top:8px">✅ Coincide con lo facturado en AlquiBot</div>`
       : `<div class="iva-nota mal" style="margin-top:8px">⚠ Difiere de AlquiBot en ${ivaPesosNum(dif)}. Revisalo antes de finalizar.</div>`;
   }
