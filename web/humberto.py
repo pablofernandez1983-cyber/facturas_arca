@@ -94,10 +94,7 @@ async def _ipc(c):
     estar publicado (el INDEC lo publica a mediados del mes siguiente; se busca desde el día 8) y
     no está, o está solo estimado. En ese caso, como mucho cada 2 h y en segundo plano (el
     11/10/2026 datos.gob.ar se colgó y la pantalla quedaba en "Cargando...")."""
-    r = await c.get(f"{SUPABASE_URL}/rest/v1/ipc_indec?select=periodo,indice,fuente", headers=_sb())
-    r.raise_for_status()
-    ipc = {f["periodo"]: float(f["indice"]) for f in r.json()}
-    fuentes = {f["periodo"]: f["fuente"] for f in r.json()}
+    ipc, fuentes = await _ipc_leer(c)
     falta = _ipc_que_falta(ipc, fuentes)
     if falta and time.time() - _ipc_estado["intento"] > 2 * 3600:
         _ipc_estado["intento"] = time.time()
@@ -105,6 +102,13 @@ async def _ipc(c):
     if not falta:
         _ipc_estado["busqueda"] = None
     return ipc, fuentes
+
+
+async def _ipc_leer(c):
+    r = await c.get(f"{SUPABASE_URL}/rest/v1/ipc_indec?select=periodo,indice,fuente", headers=_sb())
+    r.raise_for_status()
+    return ({f["periodo"]: float(f["indice"]) for f in r.json()},
+            {f["periodo"]: f["fuente"] for f in r.json()})
 
 
 def _ipc_que_falta(ipc: dict, fuentes: dict) -> list:
@@ -530,6 +534,54 @@ async def runner_log(request: Request):
     async with httpx.AsyncClient(timeout=15) as c:
         await c.post(f"{SUPABASE_URL}/rest/v1/humberto_log", json={"mensaje": str(body.get("mensaje", ""))[:500]},
                      headers=_sb({"Content-Type": "application/json", "Prefer": "return=minimal"}))
+    return {"ok": True}
+
+
+@router.post("/runner/humberto/ipc")
+async def runner_ipc(request: Request):
+    """Chequeo diario (humberto_ipc.yml, días 8-25): si falta el IPC del ajuste de este mes lo busca
+    (sin esperar a que se abra la app) y, cuando el ajuste queda completo con índices exactos y
+    todavía no se avisó, devuelve los datos para el mail. El aviso se marca con /ipc/avisado
+    recién después de mandar el mail."""
+    if not _runner_ok(request):
+        return JSONResponse(status_code=401, content={"error": "token"})
+    async with httpx.AsyncClient(timeout=20) as c:
+        ipc, fuentes = await _ipc_leer(c)
+        falta = _ipc_que_falta(ipc, fuentes)
+        if falta:
+            _ipc_estado["intento"] = time.time()
+            await _ipc_refrescar(falta, ipc, fuentes)
+            ipc, fuentes = await _ipc_leer(c)
+        hoy = _hoy()
+        actual = f"{hoy.year}{hoy.month:02d}"
+        aj = next((a for a in _cronograma(ipc) if a["periodo"] == actual), None)
+        exacto = aj and all(fuentes.get(_mas_meses(actual, -k)) in FUENTES_INDICE for k in (4, 3, 2, 1))
+        if not aj or aj["estado"] != "aplicado" or not exacto:
+            return {"aviso": None, "falta": [_mes_txt(m) for m in _ipc_que_falta(ipc, fuentes)],
+                    "busqueda": _ipc_estado["busqueda"]}
+        r = await c.get(f"{SUPABASE_URL}/rest/v1/humberto_avisos?periodo=eq.{actual}&select=periodo", headers=_sb())
+        if r.json():
+            return {"aviso": None, "ya_avisado": actual}
+        facturas = {f["periodo"]: f for f in await _facturas(c)}
+        anterior = facturas.get(_mas_meses(actual, -1))
+        pagado = float(anterior["monto"]) if anterior and anterior.get("monto") else round(aj["valor_anterior"])
+    return {"aviso": {"periodo": actual, "mes": aj["mes"], "meses_ipc": aj["meses_ipc"],
+                      "variacion": aj["variacion"], "valor_anterior": aj["valor_anterior"], "valor": aj["valor"],
+                      "pagado": pagado, "diferencia": round(aj["valor"] - pagado, 2),
+                      "inquilino": CONTRATO["inquilino"], "inmueble": CONTRATO["inmueble"]}}
+
+
+@router.post("/runner/humberto/ipc/avisado")
+async def runner_ipc_avisado(request: Request):
+    if not _runner_ok(request):
+        return JSONResponse(status_code=401, content={"error": "token"})
+    periodo = str((await request.json()).get("periodo", ""))
+    if not re.fullmatch(r"\d{6}", periodo):
+        return JSONResponse(status_code=400, content={"error": "período inválido"})
+    async with httpx.AsyncClient(timeout=15) as c:
+        await c.post(f"{SUPABASE_URL}/rest/v1/humberto_avisos?on_conflict=periodo", json={"periodo": periodo},
+                     headers=_sb({"Content-Type": "application/json",
+                                  "Prefer": "resolution=ignore-duplicates,return=minimal"}))
     return {"ok": True}
 
 
