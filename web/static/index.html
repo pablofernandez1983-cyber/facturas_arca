@@ -1305,14 +1305,32 @@ function hbAviso() {
     const anterior = d.meses.find(m => m.periodo === hbMesAnt(ult.periodo))?.factura?.monto;
     h += `<div class="iva-nota ok">📢 <b>Ya salió el IPC</b>: desde ${esc(ult.mes)} el alquiler es
       <b>${hbPesos(ult.valor)}</b> (+${ult.variacion.toLocaleString("es-AR")}%). Avisale a ${esc(d.contrato.inquilino.split(" ")[0])}
-      ${anterior ? `y que te transfiera la diferencia de ${esc(ult.mes.split(" ")[0])}: <b>${hbPesos(ult.valor - anterior)}</b> (pagó ${hbPesos(anterior)})` : ""}.</div>`;
+      ${anterior ? `y que te transfiera la diferencia de ${esc(ult.mes.split(" ")[0])}: <b>${hbPesos(ult.valor - anterior)}</b> (pagó ${hbPesos(anterior)})` : ""}.
+      ${hbBotonWa("el alquiler", ult, anterior ?? ult.valor_anterior)}</div>`;
   }
   const co = d.cochera, ultC = co && [...co.ajustes].reverse().find(x => x.estado === "aplicado");
   if (ultC && ultC.periodo === d.actual)
     h += `<div class="iva-nota ok">🚗 <b>Cochera</b>: desde ${esc(ultC.mes)} queda en <b>${hbPesos(ultC.valor)}</b>
-      (+${ultC.variacion.toLocaleString("es-AR")}%; antes ${hbPesos(ultC.valor_anterior)}).</div>`;
+      (+${ultC.variacion.toLocaleString("es-AR")}%; antes ${hbPesos(ultC.valor_anterior)}).
+      ${hbBotonWa("la cochera", ultC, ultC.valor_anterior)}</div>`;
   return h;
 }
+
+// Mismo texto que el mail del aviso (arca-runner scripts/aviso_ipc.py): corto, informal y sin apuro
+function hbTextoWa(que, mes, valor, pagado) {
+  const $ = n => "$" + Math.round(n).toLocaleString("es-AR");
+  const dif = Math.round(valor - pagado);
+  return `¡Hola! Salió la inflación, así que con el ajuste trimestral ${que} queda en ${$(valor)} desde ${mes}.`
+    + (dif > 0 ? ` De este mes serían ${$(dif)} de diferencia; pasalos cuando puedas, sin apuro.` : "")
+    + " ¡Gracias!";
+}
+function hbBotonWa(que, aj, pagado) {
+  hbWaTextos[que] = hbTextoWa(que, aj.mes.split(" ")[0].toLowerCase(), aj.valor, pagado);
+  return `<div style="margin-top:8px"><button class="btn-ok" style="background:#16a34a"
+    onclick="hbWa('${que}')">WhatsApp</button></div>`;
+}
+var hbWaTextos = {};
+function hbWa(que) { window.open("https://wa.me/?text=" + encodeURIComponent(hbWaTextos[que]), "_blank"); }
 
 function hbMesAnt(p) { const y = +p.slice(0, 4), m = +p.slice(4); return m === 1 ? `${y - 1}12` : `${y}${String(m - 1).padStart(2, "0")}`; }
 
