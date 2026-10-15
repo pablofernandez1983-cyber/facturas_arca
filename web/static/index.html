@@ -1307,6 +1307,10 @@ function hbAviso() {
       <b>${hbPesos(ult.valor)}</b> (+${ult.variacion.toLocaleString("es-AR")}%). Avisale a ${esc(d.contrato.inquilino.split(" ")[0])}
       ${anterior ? `y que te transfiera la diferencia de ${esc(ult.mes.split(" ")[0])}: <b>${hbPesos(ult.valor - anterior)}</b> (pagó ${hbPesos(anterior)})` : ""}.</div>`;
   }
+  const co = d.cochera, ultC = co && [...co.ajustes].reverse().find(x => x.estado === "aplicado");
+  if (ultC && ultC.periodo === d.actual)
+    h += `<div class="iva-nota ok">🚗 <b>Cochera</b>: desde ${esc(ultC.mes)} queda en <b>${hbPesos(ultC.valor)}</b>
+      (+${ultC.variacion.toLocaleString("es-AR")}%; antes ${hbPesos(ultC.valor_anterior)}).</div>`;
   return h;
 }
 
@@ -1358,27 +1362,35 @@ function hbFacturas() {
 }
 
 function hbContrato() {
-  const d = hb.data, c = d.contrato;
+  const d = hb.data;
+  let h = hbAviso() + hbUnContrato("Contrato", d.contrato, d.ajustes, d.ajuste_vigente, d.valor_vigente);
+  if (d.cochera) h += hbUnContrato("Cochera (sin factura)", d.cochera.contrato, d.cochera.ajustes,
+                                   d.cochera.ajuste_vigente, d.cochera.valor_vigente);
+  return h;
+}
+
+function hbUnContrato(titulo, c, ajustes, ajusteVigente, valorVigente) {
+  const d = hb.data;
   const f = s => s.split("-").reverse().join("/");
-  let h = hbAviso() + `<div class="iva-card"><h3>Contrato</h3>
+  let h = `<div class="iva-card"><h3>${esc(titulo)}</h3>
     <div class="iva-fila"><span>Inmueble</span><b>${esc(c.inmueble)}</b></div>
-    <div class="iva-fila"><span>Inquilino</span><b>${esc(c.inquilino)}</b></div>
-    <div class="iva-fila"><span>DNI</span><b>${esc(c.dni)}</b></div>
+    ${c.inquilino ? `<div class="iva-fila"><span>Inquilino</span><b>${esc(c.inquilino)}</b></div>` : ""}
+    ${c.dni ? `<div class="iva-fila"><span>DNI</span><b>${esc(c.dni)}</b></div>` : ""}
     <div class="iva-fila"><span>Vigencia</span><b>${f(c.inicio)} → ${f(c.fin)}</b></div>
     <div class="iva-fila"><span>Valor inicial</span><b>${hbPesos(c.valor_inicial)}</b></div>
     <div class="iva-fila"><span>Ajuste</span><b>Cada ${c.cada_meses} meses · ${esc(c.indice)}</b></div>
-    <div class="iva-fila grande"><span>Valor vigente</span><b>${d.valor_vigente ? hbPesos(d.valor_vigente) : "falta IPC"}</b></div>
+    <div class="iva-fila grande"><span>Valor vigente</span><b>${valorVigente ? hbPesos(valorVigente) : "falta IPC"}</b></div>
     <div class="iva-fila"><span>Último IPC publicado</span><b>${esc(d.ipc_ultimo || "—")}</b></div></div>
-    <div class="iva-card"><h3>Ajustes</h3><table class="hb-tabla">
+    <div class="iva-card"><h3>Ajustes · ${esc(titulo.split(" ")[0])}</h3><table class="hb-tabla">
     <tr><th>Desde</th><th>IPC de</th><th class="n">Var.</th><th class="n">Alquiler</th></tr>`;
   h += `<tr><td>${esc(f(c.inicio).slice(3))}</td><td>—</td><td class="n">—</td><td class="n">${hbPesos(c.valor_inicial)}</td></tr>`;
-  for (const a of d.ajustes) {
+  for (const a of ajustes) {
     const ipc = a.meses_ipc.map(x => x.slice(0, 3)).join("-");
     let v, val;
     if (a.estado === "aplicado") { v = "+" + a.variacion.toLocaleString("es-AR") + "%"; val = hbPesos(a.valor); }
     else if (a.estado === "parcial") { v = `≈+${a.variacion_parcial.toLocaleString("es-AR")}%`; val = `<span style="color:var(--sub)">falta ${esc(a.falta.map(x => x.split(" ")[0].slice(0, 3)).join("-"))}</span>`; }
     else { v = "—"; val = `<span style="color:var(--sub)">IPC ${esc(a.meses_ipc[2].split(" ")[0].toLowerCase())} sale a med. de ${esc(MESES_SIG(a.periodo))}</span>`; }
-    h += `<tr${a.periodo === d.ajuste_vigente?.periodo ? ' style="background:#f0fdf4"' : ""}><td>${esc(a.mes.slice(0, 3) + " " + a.mes.slice(-2))}</td><td>${ipc}</td><td class="n">${v}</td><td class="n">${val}</td></tr>`;
+    h += `<tr${a.periodo === ajusteVigente?.periodo ? ' style="background:#f0fdf4"' : ""}><td>${esc(a.mes.slice(0, 3) + " " + a.mes.slice(-2))}</td><td>${ipc}</td><td class="n">${v}</td><td class="n">${val}</td></tr>`;
   }
   h += `</table><p style="font-size:12px;color:var(--sub);margin-top:8px;line-height:1.4">Cada ajuste usa la variación del IPC
     de los 3 meses anteriores (ej. julio: índice de junio ÷ marzo). Los valores son exactos, sin redondear; lo que

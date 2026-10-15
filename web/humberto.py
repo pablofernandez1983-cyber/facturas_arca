@@ -45,6 +45,18 @@ CONTRATO = {
     "cada_meses": 3,
     "indice":     "IPC (INDEC) nivel general",
 }
+# Cochera del mismo edificio: mismo ajuste (IPC trimestral, misma fórmula; verificada contra los
+# valores de la app de alquileres de Pablo: nov-25 $95.783 … ago-26 $120.443). No se factura: solo
+# se avisa cuando sale el IPC del ajuste.
+COCHERA = {
+    "inmueble":   "Cochera Humberto Primo 2031",
+    "inquilino":  "",
+    "inicio":     "2025-08-01",
+    "fin":        "2027-07-31",
+    "valor_inicial": 90000,
+    "cada_meses": 3,
+    "indice":     "IPC (INDEC) nivel general",
+}
 IPC_SERIE = "148.3_INIVELNAL_DICI_M_26"
 MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto",
          "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -114,10 +126,17 @@ async def _ipc_leer(c):
 def _ipc_que_falta(ipc: dict, fuentes: dict) -> list:
     """Meses del próximo ajuste pendiente cuyo IPC ya debería estar publicado y no está (o está
     estimado desde un %)."""
+    falta = set()
+    for contrato in (CONTRATO, COCHERA):
+        falta.update(_ipc_que_falta_de(ipc, fuentes, contrato))
+    return sorted(falta)
+
+
+def _ipc_que_falta_de(ipc: dict, fuentes: dict, contrato: dict) -> list:
     hoy = _hoy()
-    ini = CONTRATO["inicio"][:4] + CONTRATO["inicio"][5:7]
-    fin = CONTRATO["fin"][:4] + CONTRATO["fin"][5:7]
-    p = _mas_meses(ini, CONTRATO["cada_meses"])
+    ini = contrato["inicio"][:4] + contrato["inicio"][5:7]
+    fin = contrato["fin"][:4] + contrato["fin"][5:7]
+    p = _mas_meses(ini, contrato["cada_meses"])
     while p <= fin:
         necesarios = [_mas_meses(p, -k) for k in (4, 3, 2, 1)]
         incompletos = [m for m in necesarios if m not in ipc or fuentes.get(m) not in FUENTES_INDICE]
@@ -125,7 +144,7 @@ def _ipc_que_falta(ipc: dict, fuentes: dict) -> list:
             # Solo importa en el mes del ajuste: el IPC del mes anterior sale a mediados (día 8 en
             # adelante). Los meses intermedios se completan en esa misma búsqueda.
             return incompletos if hoy >= date(int(p[:4]), int(p[4:]), 8) else []
-        p = _mas_meses(p, CONTRATO["cada_meses"])
+        p = _mas_meses(p, contrato["cada_meses"])
     return []
 
 
@@ -217,12 +236,12 @@ async def _ipc_refrescar(falta: list, ipc: dict, fuentes: dict):
         _ipc_estado["busqueda"] = None
 
 
-def _cronograma(ipc: dict) -> list:
+def _cronograma(ipc: dict, contrato: dict = CONTRATO) -> list:
     """Ajustes del contrato con su estado: aplicado (IPC completo), parcial (falta algún mes) o futuro."""
-    ini = CONTRATO["inicio"][:4] + CONTRATO["inicio"][5:7]
-    fin = CONTRATO["fin"][:4] + CONTRATO["fin"][5:7]
-    valor, ajustes = float(CONTRATO["valor_inicial"]), []
-    p = _mas_meses(ini, CONTRATO["cada_meses"])
+    ini = contrato["inicio"][:4] + contrato["inicio"][5:7]
+    fin = contrato["fin"][:4] + contrato["fin"][5:7]
+    valor, ajustes = float(contrato["valor_inicial"]), []
+    p = _mas_meses(ini, contrato["cada_meses"])
     while p <= fin:
         base, ultimo = _mas_meses(p, -4), _mas_meses(p, -1)
         meses = [_mas_meses(p, -3), _mas_meses(p, -2), ultimo]
@@ -245,13 +264,13 @@ def _cronograma(ipc: dict) -> list:
             a.update(estado="futuro")
             valor = None
         ajustes.append(a)
-        p = _mas_meses(p, CONTRATO["cada_meses"])
+        p = _mas_meses(p, contrato["cada_meses"])
     return ajustes
 
 
-def _valor_de(periodo: str, ajustes: list):
+def _valor_de(periodo: str, ajustes: list, contrato: dict = CONTRATO):
     """Valor contractual de un mes (None si depende de un IPC que todavía no salió)."""
-    v = float(CONTRATO["valor_inicial"])
+    v = float(contrato["valor_inicial"])
     for a in ajustes:
         if a["periodo"] > periodo:
             break
@@ -350,7 +369,11 @@ async def humberto_estado():
     for a in ajustes:
         if a["periodo"] <= actual:
             vigente = a
-    return {"contrato": CONTRATO, "ajustes": ajustes, "meses": meses, "actual": actual,
+    aj_cochera = _cronograma(ipc, COCHERA)
+    cochera = {"contrato": COCHERA, "ajustes": aj_cochera,
+               "valor_vigente": _valor_de(actual, aj_cochera, COCHERA),
+               "ajuste_vigente": next((a for a in reversed(aj_cochera) if a["periodo"] <= actual), None)}
+    return {"cochera": cochera, "contrato": CONTRATO, "ajustes": ajustes, "meses": meses, "actual": actual,
             "valor_vigente": _valor_de(actual, ajustes), "ajuste_vigente": vigente,
             "ipc_ultimo": _mes_txt(max(ipc)) if ipc else None, "ipc_error": ipc_error,
             "ipc_busqueda": _ipc_estado["busqueda"],
@@ -554,21 +577,28 @@ async def runner_ipc(request: Request):
             ipc, fuentes = await _ipc_leer(c)
         hoy = _hoy()
         actual = f"{hoy.year}{hoy.month:02d}"
-        aj = next((a for a in _cronograma(ipc) if a["periodo"] == actual), None)
-        exacto = aj and all(fuentes.get(_mas_meses(actual, -k)) in FUENTES_INDICE for k in (4, 3, 2, 1))
-        if not aj or aj["estado"] != "aplicado" or not exacto:
-            return {"aviso": None, "falta": [_mes_txt(m) for m in _ipc_que_falta(ipc, fuentes)],
-                    "busqueda": _ipc_estado["busqueda"]}
-        r = await c.get(f"{SUPABASE_URL}/rest/v1/humberto_avisos?periodo=eq.{actual}&select=periodo", headers=_sb())
-        if r.json():
-            return {"aviso": None, "ya_avisado": actual}
         facturas = {f["periodo"]: f for f in await _facturas(c)}
-        anterior = facturas.get(_mas_meses(actual, -1))
-        pagado = float(anterior["monto"]) if anterior and anterior.get("monto") else round(aj["valor_anterior"])
-    return {"aviso": {"periodo": actual, "mes": aj["mes"], "meses_ipc": aj["meses_ipc"],
-                      "variacion": aj["variacion"], "valor_anterior": aj["valor_anterior"], "valor": aj["valor"],
-                      "pagado": pagado, "diferencia": round(aj["valor"] - pagado, 2),
-                      "inquilino": CONTRATO["inquilino"], "inmueble": CONTRATO["inmueble"]}}
+        avisos = []
+        # La marca de "avisado" del depto es el período a secas (así quedaron las de 2026); la de la
+        # cochera lleva prefijo. La cochera no se factura: se asume que pagó el valor anterior.
+        for contrato, marca, factura in ((CONTRATO, actual, True), (COCHERA, f"cochera-{actual}", False)):
+            aj = next((a for a in _cronograma(ipc, contrato) if a["periodo"] == actual), None)
+            exacto = aj and all(fuentes.get(_mas_meses(actual, -k)) in FUENTES_INDICE for k in (4, 3, 2, 1))
+            if not aj or aj["estado"] != "aplicado" or not exacto:
+                continue
+            r = await c.get(f"{SUPABASE_URL}/rest/v1/humberto_avisos?periodo=eq.{marca}&select=periodo", headers=_sb())
+            if r.json():
+                continue
+            anterior = facturas.get(_mas_meses(actual, -1)) if factura else None
+            pagado = float(anterior["monto"]) if anterior and anterior.get("monto") else round(aj["valor_anterior"])
+            avisos.append({"periodo": marca, "mes": aj["mes"], "meses_ipc": aj["meses_ipc"],
+                           "variacion": aj["variacion"], "valor_anterior": aj["valor_anterior"], "valor": aj["valor"],
+                           "pagado": pagado, "diferencia": round(aj["valor"] - pagado, 2), "factura": factura,
+                           "inquilino": contrato["inquilino"], "inmueble": contrato["inmueble"]})
+    if not avisos:
+        return {"avisos": [], "falta": [_mes_txt(m) for m in _ipc_que_falta(ipc, fuentes)],
+                "busqueda": _ipc_estado["busqueda"]}
+    return {"avisos": avisos}
 
 
 @router.post("/runner/humberto/ipc/avisado")
@@ -576,7 +606,7 @@ async def runner_ipc_avisado(request: Request):
     if not _runner_ok(request):
         return JSONResponse(status_code=401, content={"error": "token"})
     periodo = str((await request.json()).get("periodo", ""))
-    if not re.fullmatch(r"\d{6}", periodo):
+    if not re.fullmatch(r"(cochera-)?\d{6}", periodo):
         return JSONResponse(status_code=400, content={"error": "período inválido"})
     async with httpx.AsyncClient(timeout=15) as c:
         await c.post(f"{SUPABASE_URL}/rest/v1/humberto_avisos?on_conflict=periodo", json={"periodo": periodo},
