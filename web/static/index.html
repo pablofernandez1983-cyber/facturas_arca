@@ -1545,7 +1545,7 @@ function hzRender() {
   const [y, m] = d.periodo.split("-");
   const mes = NOMBRES_MES[+m - 1];
   document.getElementById("hzLim").textContent = pesos(d.limite_mensual);
-  document.getElementById("hzLimN").textContent = "Cat. B · " + d.limite_origen;
+  document.getElementById("hzLimN").textContent = "Cat. " + (d.categoria || "G") + " · " + d.limite_origen;
   document.getElementById("hzFac").textContent = pesos(d.facturado_mes);
   document.getElementById("hzFacN").textContent = "emitido en " + d.mes_actual.split("-").reverse().join("/");
   document.getElementById("hzNota").textContent = d.ya_emitidas
@@ -1628,7 +1628,7 @@ function hzAbrirModal() {
     <ul class="lista-m">${eleg.map(o => `<li><div><div class="lmr">#${esc(o.numero_orden)}</div>
       <div class="lmd">${esc(o.comprador || "")}</div></div><div class="lmp" style="color:#b0607e">${pesos(o.monto)}</div></li>`).join("")}</ul>
     <p style="text-align:right;font-weight:800;font-size:16px;margin-top:12px;color:#b0607e">Total: ${pesos(total)}</p>
-    ${quedan < 0 ? `<p style="margin-top:8px;color:#c62828;font-weight:700;font-size:13px">⚠ Con esto te pasás del límite de Cat. B por ${pesos(-quedan)}</p>` : ""}`;
+    ${quedan < 0 ? `<p style="margin-top:8px;color:#c62828;font-weight:700;font-size:13px">⚠ Con esto te pasás del límite de Cat. ${d.categoria || "G"} por ${pesos(-quedan)}</p>` : ""}`;
   document.getElementById("mfoot").innerHTML = `
     <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
     <button class="btn-ok" style="background:#b0607e" onclick="hzConfirmar()">Facturar ahora</button>`;

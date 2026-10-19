@@ -1,5 +1,5 @@
 """
-Facturación de Hechizo (Lorena Digiorno, monotributo Cat. B) desde la app.
+Facturación de Hechizo (Lorena Digiorno, monotributo Cat. G) desde la app.
 
 Port de contador/tiendanube_a_arca.py: mismas reglas para elegir qué órdenes se facturan
 (MercadoPago + pago recibido + enviada/entregada/lista para retirar) y mismo tope mensual
@@ -51,22 +51,24 @@ def _hoy_ar() -> datetime:
 
 
 # ─────────────────────────────────────────────
-# Tope mensual Monotributo Cat. B (igual que actualizar_limite_desde_arca del script de la PC)
+# Tope mensual Monotributo de la categoría de Lore (igual que actualizar_limite_desde_arca del script de la PC).
+# Desde oct/2026 Lore pasó de Cat. B a Cat. G.
 # ─────────────────────────────────────────────
 ARCA_CATEGORIAS_URL = "https://www.afip.gob.ar/monotributo/categorias.asp"
-_limite = {"anual": 17_595_182.74, "origen": "valor por defecto", "ts": 0.0, "verificado": False}
+CATEGORIA = "G"
+_limite = {"anual": 53_995_798.87, "categoria": CATEGORIA, "origen": "valor por defecto", "ts": 0.0, "verificado": False}
 
 
-async def _limite_cat_b() -> dict:
+async def _limite_categoria() -> dict:
     if _limite["verificado"] and time.time() - _limite["ts"] < 6 * 3600:
         return _limite
     try:
         async with httpx.AsyncClient(timeout=20, headers={"User-Agent": "Mozilla/5.0"}) as c:
             r = await c.get(ARCA_CATEGORIAS_URL)
         r.raise_for_status()
-        m = re.search(r'>\s*B\s*</th>\s*<td[^>]*Ingresos brutos[^>]*>\s*\$\s*([\d.,]+)', r.text)
+        m = re.search(r'>\s*' + CATEGORIA + r'\s*</th>\s*<td[^>]*Ingresos brutos[^>]*>\s*\$\s*([\d.,]+)', r.text)
         if not m:
-            raise ValueError("no encontré la fila de Categoría B")
+            raise ValueError(f"no encontré la fila de Categoría {CATEGORIA}")
         anual = float(m.group(1).replace(".", "").replace(",", "."))
         if not 1_000_000 < anual < 10_000_000_000:
             raise ValueError(f"valor raro: {anual}")
@@ -225,7 +227,7 @@ async def hechizo_ordenes(periodo: str = "actual"):
         return JSONResponse(status_code=503, content={"error": "Faltan las credenciales de Tienda Nube en el servidor"})
     try:
         desde, items, ya = await _ordenes_periodo(periodo)
-        limite, facturado = await asyncio.gather(_limite_cat_b(), _facturado_mes())
+        limite, facturado = await asyncio.gather(_limite_categoria(), _facturado_mes())
     except Exception as e:
         return JSONResponse(status_code=502, content={"error": f"No pude traer los datos: {e}"})
     pendientes = [it for it in items if it["numero_orden"] not in ya]
@@ -234,6 +236,7 @@ async def hechizo_ordenes(periodo: str = "actual"):
         "periodo":        desde.strftime("%Y-%m"),
         "limite_mensual": round(limite["anual"] / 12, 2),
         "limite_origen":  limite["origen"],
+        "categoria":      limite["categoria"],
         "facturado_mes":  facturado,
         "mes_actual":     _hoy_ar().strftime("%Y-%m"),
         "ya_emitidas":    len(emitidas),
