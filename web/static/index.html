@@ -1653,7 +1653,9 @@ async function hzConfirmar() {
     return;
   }
   document.getElementById("hzls").textContent = `⏳ Robot en camino: ${resp.cantidad} factura${resp.cantidad > 1 ? "s" : ""} · ${pesos(resp.total)}`;
-  document.getElementById("hzlg").textContent = "GitHub Actions recibió el pedido.\nArranca en ~30 s...";
+  document.getElementById("hzlg").textContent = resp.sesion
+    ? "El robot sigue logueado en ARCA de la tanda anterior.\nArranca enseguida, sin volver a loguearse..."
+    : "GitHub Actions recibió el pedido.\nArranca en ~30 s...";
   hz.sel.clear();
   hz.desde = Date.now() - 30000;               // ignorar el run anterior hasta que aparezca el nuevo
   hz.timer = -1; hzActualizar();               // bloquea el botón mientras corre

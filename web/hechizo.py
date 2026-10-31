@@ -245,6 +245,29 @@ async def hechizo_ordenes(periodo: str = "actual"):
     }
 
 
+# ─────────────────────────────────────────────
+# Sesión abierta: después de cada tanda el robot queda logueado en ARCA unos minutos
+# (scripts/emitir_hechizo.py, ESPERA_MAX) preguntando por /runner/hechizo/esperar. Si en ese
+# rato se pide otra tanda, se la pasa a ese robot en vez de disparar un workflow nuevo
+# (que además quedaría en cola detrás del que espera: mismo grupo de concurrencia).
+# En memoria a propósito: si Railway reinicia, el robot lo reconstruye en su próximo latido.
+# ─────────────────────────────────────────────
+_ses = {"latido": 0.0, "hasta": 0.0, "cola": [], "procesando": False, "lote_inicio": None}
+
+
+def _sesion_viva(margen: float = 0) -> bool:
+    ahora = time.time()
+    return ahora - _ses["latido"] < 25 and _ses["hasta"] - ahora > margen
+
+
+async def _log_nuevo(mensaje: str):
+    """Arranca el log de una tanda nueva (como /runner/hechizo/inicio)."""
+    async with httpx.AsyncClient(timeout=15) as c:
+        await c.delete(f"{SUPABASE_URL}/rest/v1/hechizo_log?id=gte.0", headers=_sb_headers())
+        await c.post(f"{SUPABASE_URL}/rest/v1/hechizo_log", json={"mensaje": mensaje},
+                     headers=_sb_headers({"Content-Type": "application/json", "Prefer": "return=minimal"}))
+
+
 @router.post("/api/hechizo/emitir")
 async def hechizo_emitir(request: Request):
     """Body: {"periodo": "actual"|"anterior", "ordenes": ["11462", ...]}.
@@ -263,13 +286,21 @@ async def hechizo_emitir(request: Request):
     if not elegidas:
         return JSONResponse(status_code=409, content={"error": "Esas órdenes ya están facturadas o ya no califican"})
 
+    total = round(sum(float(e["monto"]) for e in elegidas), 2)
+    if _sesion_viva(margen=45):   # con menos de 45 s por delante no conviene: puede cerrar antes de leerla
+        en_cola = {e["numero_orden"] for e in _ses["cola"]}
+        _ses["cola"].extend(e for e in elegidas if e["numero_orden"] not in en_cola)
+        _ses["procesando"] = True
+        _ses["lote_inicio"] = datetime.now(timezone.utc).isoformat()
+        await _log_nuevo("🔁 El robot sigue logueado en ARCA: facturo con la misma sesión...")
+        return {"ok": True, "cantidad": len(elegidas), "total": total, "sesion": True}
+
     async with httpx.AsyncClient(timeout=15) as c:
         r = await c.post(f"https://api.github.com/repos/{RUNNER_REPO}/actions/workflows/{WORKFLOW_FILE}/dispatches",
                          headers=_gh_headers(),
                          json={"ref": "main", "inputs": {"ordenes": json.dumps(elegidas, ensure_ascii=False)}})
     if r.status_code == 204:
-        return {"ok": True, "cantidad": len(elegidas),
-                "total": round(sum(float(e["monto"]) for e in elegidas), 2)}
+        return {"ok": True, "cantidad": len(elegidas), "total": total}
     return JSONResponse(status_code=502, content={"error": f"GitHub {r.status_code}: {r.text[:200]}"})
 
 
@@ -284,8 +315,17 @@ async def hechizo_estado():
     if not runs:
         return {"status": "none"}
     run = runs[0]
-    return {"status": run["status"], "conclusion": run["conclusion"],
-            "url": run["html_url"], "started_at": run["run_started_at"], "run_id": run["id"]}
+    est = {"status": run["status"], "conclusion": run["conclusion"],
+           "url": run["html_url"], "started_at": run["run_started_at"], "run_id": run["id"]}
+    if run["status"] != "completed" and (_sesion_viva() or _ses["procesando"] and time.time() - _ses["latido"] < 600):
+        # El run sigue abierto porque el robot espera otra tanda: para la app la tanda ya terminó
+        # (o, si le pasamos una, está en curso desde lote_inicio).
+        est["started_at"] = _ses["lote_inicio"] or run["run_started_at"]
+        if _ses["procesando"]:
+            est["status"] = "in_progress"
+        else:
+            est.update(status="completed", conclusion="success", sesion_abierta=True)
+    return est
 
 
 @router.get("/api/hechizo/progreso")
@@ -357,6 +397,33 @@ async def runner_log(request: Request):
         await c.post(f"{SUPABASE_URL}/rest/v1/hechizo_log", json={"mensaje": str(body.get("mensaje", ""))[:500]},
                      headers=_sb_headers({"Content-Type": "application/json", "Prefer": "return=minimal"}))
     return {"ok": True}
+
+
+@router.post("/runner/hechizo/esperar")
+async def runner_esperar(request: Request):
+    """Latido del robot que espera con la sesión abierta. Body: {"hasta": epoch de su límite}.
+    Devuelve la tanda nueva si la hay (y se la saca de la cola)."""
+    if not _runner_ok(request):
+        return JSONResponse(status_code=401, content={"error": "token"})
+    body = await request.json()
+    _ses["latido"] = time.time()
+    _ses["hasta"] = float(body.get("hasta") or 0)
+    ordenes, _ses["cola"] = _ses["cola"], []
+    _ses["procesando"] = bool(ordenes)
+    return {"ordenes": ordenes}
+
+
+@router.post("/runner/hechizo/cerrar")
+async def runner_cerrar(request: Request):
+    """El robot se va. Si justo llegó una tanda, se la devuelve y no cierra (no se pierde nada)."""
+    if not _runner_ok(request):
+        return JSONResponse(status_code=401, content={"error": "token"})
+    ordenes, _ses["cola"] = _ses["cola"], []
+    if ordenes:
+        _ses["procesando"] = True   # sin renovar el latido: si el robot murió, la sesión se da por cerrada sola
+    else:
+        _ses.update(latido=0.0, hasta=0.0, procesando=False, lote_inicio=None)
+    return {"ordenes": ordenes}
 
 
 @router.post("/runner/hechizo/emitidas")
