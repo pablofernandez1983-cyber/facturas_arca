@@ -61,7 +61,7 @@ IPC_SERIE = "148.3_INIVELNAL_DICI_M_26"
 MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto",
          "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 EN_CURSO = {"en_cola", "emitiendo", "esperando_ok", "confirmando"}
-PAUSA_TRAS_FALLO = 10   # minutos entre un intento fallido y el siguiente
+PAUSA_TRAS_FALLO = 2   # minutos entre un intento fallido y el siguiente
 
 router = APIRouter()
 
