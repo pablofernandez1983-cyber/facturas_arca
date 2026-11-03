@@ -61,6 +61,7 @@ IPC_SERIE = "148.3_INIVELNAL_DICI_M_26"
 MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto",
          "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 EN_CURSO = {"en_cola", "emitiendo", "esperando_ok", "confirmando"}
+PAUSA_TRAS_FALLO = 10   # minutos entre un intento fallido y el siguiente
 
 router = APIRouter()
 
@@ -422,8 +423,18 @@ async def humberto_emitir(request: Request):
     actual = f"{_hoy().year}{_hoy().month:02d}"
     async with httpx.AsyncClient(timeout=20) as c:
         try:
-            if any(x["status"] != "completed" for x in await _runs(c)):
+            runs = await _runs(c)
+            if any(x["status"] != "completed" for x in runs):
                 return JSONResponse(status_code=409, content={"error": "El robot ya está trabajando. Esperá a que termine."})
+            # Si la última corrida falló, no reintentar enseguida: varios logins seguidos en ARCA
+            # pueden hacer que lo detecte como robot o bloquee la clave.
+            if runs and runs[0]["conclusion"] == "failure":
+                falta = _dt(runs[0]["updated_at"]) + timedelta(minutes=PAUSA_TRAS_FALLO) - datetime.now(timezone.utc)
+                if falta.total_seconds() > 0:
+                    mins = int(falta.total_seconds() // 60) + 1
+                    return JSONResponse(status_code=409, content={
+                        "error": f"El último intento falló. Para no insistir con el login de ARCA, "
+                                 f"esperá {mins} min antes de volver a probar."})
         except Exception as e:
             return JSONResponse(status_code=502, content={"error": str(e)})
         facturas = {f["periodo"]: f for f in await _facturas(c)}
@@ -448,6 +459,41 @@ async def humberto_emitir(request: Request):
                 await _actualizar(c, facturas[p]["id"], {"estado": "pendiente",
                                                          "mensaje": f"No se pudo arrancar el robot: GitHub {r.status_code}"})
             return JSONResponse(status_code=502, content={"error": f"GitHub {r.status_code}: {r.text[:200]}"})
+    return {"ok": True}
+
+
+@router.post("/api/humberto/cancelar")
+async def humberto_cancelar():
+    """Frena el robot. No deja si ya está apretando Confirmar en ARCA (quedaría a medio emitir)."""
+    async with httpx.AsyncClient(timeout=20) as c:
+        if any(f["estado"] == "confirmando" for f in await _facturas(c)):
+            return JSONResponse(status_code=409, content={
+                "error": "El robot ya está confirmando la factura en ARCA: no se puede frenar ahora."})
+        try:
+            vivos = [x for x in await _runs(c) if x["status"] != "completed"]
+        except Exception as e:
+            return JSONResponse(status_code=502, content={"error": str(e)})
+        for run in vivos:
+            base = f"https://api.github.com/repos/{RUNNER_REPO}/actions/runs/{run['id']}"
+            r = await c.post(f"{base}/cancel", headers=_gh())
+            if r.status_code not in (202, 409):
+                return JSONResponse(status_code=502, content={"error": f"GitHub {r.status_code}: {r.text[:200]}"})
+        if vivos:   # el cancel común a veces tarda; el forzado lo corta en seco
+            await asyncio.sleep(4)
+            for run in vivos:
+                r = await c.get(f"https://api.github.com/repos/{RUNNER_REPO}/actions/runs/{run['id']}", headers=_gh())
+                if r.is_success and r.json().get("status") != "completed":
+                    await c.post(f"https://api.github.com/repos/{RUNNER_REPO}/actions/runs/{run['id']}/force-cancel",
+                                 headers=_gh())
+        for f in await _facturas(c):
+            if f["estado"] == "confirmando":   # justo llegó a confirmar mientras cancelábamos
+                await _actualizar(c, f["id"], {"estado": "verificar", "esperando": False, "mensaje":
+                                               "Se canceló justo al confirmar: fijate en ARCA si se emitió."})
+            elif f["estado"] in EN_CURSO:
+                await _actualizar(c, f["id"], {"estado": "pendiente", "esperando": False, "aprobado": None,
+                                               "mensaje": "Cancelada por vos: no se emitió."})
+        await c.post(f"{SUPABASE_URL}/rest/v1/humberto_log", json={"mensaje": "⛔ Cancelado desde la app"},
+                     headers=_sb({"Content-Type": "application/json", "Prefer": "return=minimal"}))
     return {"ok": True}
 
 

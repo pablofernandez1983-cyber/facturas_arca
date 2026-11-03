@@ -1347,7 +1347,8 @@ function hbFacturas() {
       <button class="iva-btn final" onclick="hbOk(${esperando.id}, true)">✅ Emitir esta factura</button>
       <button class="iva-btn sec" onclick="hbOk(${esperando.id}, false)">Saltear</button></div>`;
   }
-  if (enCurso || d.robot_ocupado) h += `<div class="iva-card"><div class="ls r">⏳ Robot trabajando...</div><div class="log" id="hbLog">Esperando al robot...</div></div>`;
+  if (enCurso || d.robot_ocupado) h += `<div class="iva-card"><div class="ls r">⏳ Robot trabajando...</div><div class="log" id="hbLog">Esperando al robot...</div>
+    <button class="iva-btn sec" id="hbCancelar" onclick="hbCancelar()">⛔ Cancelar robot</button></div>`;
 
   for (const m of [...d.meses].reverse()) {
     const f = m.factura, est = f ? f.estado : "sin";
@@ -1487,6 +1488,15 @@ async function hbOk(id, emitir) {
   document.querySelectorAll("#hbCuerpo .iva-btn").forEach(b => b.disabled = true);
   const r = await api("/api/humberto/ok", { method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, emitir }) }).then(r => r.json()).catch(e => ({ error: e.message }));
+  if (r.error) alert("❌ " + r.error);
+  hbCargar();
+}
+
+async function hbCancelar() {
+  if (!confirm("¿Frenar el robot? La factura queda pendiente, sin emitir.")) return;
+  const b = document.getElementById("hbCancelar");
+  if (b) { b.disabled = true; b.textContent = "Cancelando..."; }
+  const r = await api("/api/humberto/cancelar", { method: "POST" }).then(r => r.json()).catch(e => ({ error: e.message }));
   if (r.error) alert("❌ " + r.error);
   hbCargar();
 }
