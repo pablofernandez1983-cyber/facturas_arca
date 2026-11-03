@@ -363,7 +363,7 @@ async def humberto_estado():
             f = facturas.get(p)
             meses.append({"periodo": p, "mes": _mes_txt(p), "valor_contrato": _valor_de(p, ajustes),
                           "factura": f, "archivos": await _archivos(c, f["id"]) if f and f["estado"] in
-                          ("emitida", "esperando_ok", "verificar") else []})
+                          ("emitida", "esperando_ok", "verificar", "error") else []})
             p = _mas_meses(p, 1)
 
     vigente = None

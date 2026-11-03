@@ -1363,11 +1363,13 @@ function hbFacturas() {
     const monto = f?.monto ?? (m.valor_contrato && Math.round(m.valor_contrato));
     const editable = !f || ["pendiente", "error"].includes(est);
     const pdf = (m.archivos || []).find(a => a.endsWith(".pdf"));
+    const errPng = est === "error" && (m.archivos || []).find(a => a.endsWith("error.png"));
     h += `<div class="hb-mes ${hb.sel.has(m.periodo) ? "sel" : ""}">
       ${elegible ? `<div class="hb-chk" onclick="hbToggle('${m.periodo}')">${hb.sel.has(m.periodo) ? "✓" : ""}</div>` : ""}
       <div class="m"><b>${esc(m.mes)}</b>
         <small>${m.valor_contrato ? "Contrato " + hbPesos(m.valor_contrato) : "Contrato: falta IPC"}${f?.nota ? " · " + esc(f.nota) : ""}</small>
         ${f?.mensaje ? `<small style="display:block;color:${est === "verificar" || est === "error" ? "var(--danger)" : "var(--sub)"}">${esc(f.mensaje)}</small>` : ""}
+        ${errPng ? `<button class="hb-tag mal" style="border:none;margin-top:4px;cursor:pointer" onclick="hbAbrir('${esc(errPng)}')">🖼️ Ver pantalla del error</button>` : ""}
         ${pdf ? `<button class="hb-tag ok" style="border:none;margin-top:4px;cursor:pointer" onclick="hbAbrir('${esc(pdf)}')">📄 PDF</button>` : ""}
         ${est === "verificar" ? `<div style="display:flex;gap:6px;margin-top:6px">
           <button class="hb-tag ok" style="border:none" onclick="hbVerificado(${f.id}, true)">Sí, se emitió</button>
