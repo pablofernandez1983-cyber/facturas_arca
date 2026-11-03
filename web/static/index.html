@@ -1250,7 +1250,7 @@ async function ivaAbrir(path) {
 }
 
 // ─── HumbertoBot ─────────────────────────────────────────────────────────
-var hb = { data: null, tab: "fac", sel: new Set(), timer: null, imgs: {} };
+var hb = { data: null, tab: "fac", sel: new Set(), timer: null, imgs: {}, logTxt: "" };
 const HB_EN_CURSO = ["en_cola", "emitiendo", "esperando_ok", "confirmando"];
 const hbPesos = n => n == null ? "—" : "$ " + Number(n).toLocaleString("es-AR",
   { minimumFractionDigits: Number.isInteger(Number(n)) ? 0 : 2, maximumFractionDigits: 2 });
@@ -1343,11 +1343,11 @@ function hbFacturas() {
     const m = d.meses.find(x => x.factura?.id === esperando.id);
     h += `<div class="iva-card hb-prev"><h3>Vista previa · ${esc(m.mes)}</h3>
       <div class="iva-fila grande"><span>Importe</span><b>${hbPesos(esperando.monto)}</b></div>
-      <div id="hbPrevImg"><div class="vacio" style="padding:14px">Cargando captura...</div></div>
+      <div id="hbPrevImg">${hbImgPrevia(m) ? `<img src="${hbImgPrevia(m)}" onclick="window.open(this.src)">` : '<div class="vacio" style="padding:14px">Cargando captura...</div>'}</div>
       <button class="iva-btn final" onclick="hbOk(${esperando.id}, true)">✅ Emitir esta factura</button>
       <button class="iva-btn sec" onclick="hbOk(${esperando.id}, false)">Saltear</button></div>`;
   }
-  if (enCurso || d.robot_ocupado) h += `<div class="iva-card"><div class="ls r">⏳ Robot trabajando...</div><div class="log" id="hbLog">Esperando al robot...</div>
+  if (enCurso || d.robot_ocupado) h += `<div class="iva-card"><div class="ls r">⏳ Robot trabajando...</div><div class="log" id="hbLog">${esc(hb.logTxt || "Esperando al robot...")}</div>
     <button class="iva-btn sec" id="hbCancelar" onclick="hbCancelar()">⛔ Cancelar robot</button></div>`;
 
   for (const m of [...d.meses].reverse()) {
@@ -1421,8 +1421,23 @@ function hbUnContrato(titulo, c, ajustes, ajusteVigente, valorVigente) {
 
 function MESES_SIG(p) { return NOMBRES_MES[+p.slice(4) - 1].toLowerCase(); }   // el IPC del mes anterior sale a mediados de este
 
+function hbClavePrevia(m) {
+  const path = (m?.archivos || []).find(a => a.endsWith("vista_previa.png"));
+  return path && path + "|" + m.factura.actualizado_at;
+}
+function hbImgPrevia(m) { const k = hbClavePrevia(m); return k ? hb.imgs[k] : null; }
+
+function hbMostrarLog() {
+  const el = document.getElementById("hbLog");
+  if (!el) return;
+  if (hb.logTxt && el.textContent !== hb.logTxt) el.textContent = hb.logTxt;
+  el.scrollTop = el.scrollHeight;
+}
+
 async function hbPostRender() {
   const d = hb.data;
+  hbMostrarLog();
+  hbActualizarLog();   // en paralelo con la captura, no después
   const esperando = d.meses.find(m => m.factura?.estado === "esperando_ok" && m.factura.esperando);
   if (esperando) {
     const path = (esperando.archivos || []).find(a => a.endsWith("vista_previa.png"));
@@ -1437,11 +1452,13 @@ async function hbPostRender() {
       if (el2) el2.innerHTML = hb.imgs[clave] ? `<img src="${hb.imgs[clave]}" onclick="window.open(this.src)">` : "No pude cargar la captura";
     }
   }
-  if (document.getElementById("hbLog")) {
-    const logs = await api("/api/humberto/progreso").then(r => r.json()).catch(() => []);
-    const el = document.getElementById("hbLog");
-    if (el && Array.isArray(logs) && logs.length) { el.textContent = logs.map(l => l.mensaje).join("\n"); el.scrollTop = el.scrollHeight; }
-  }
+}
+
+async function hbActualizarLog() {
+  if (!document.getElementById("hbLog")) return;
+  const logs = await api("/api/humberto/progreso").then(r => r.json()).catch(() => null);
+  if (Array.isArray(logs) && logs.length) hb.logTxt = logs.map(l => l.mensaje).join("\n");
+  hbMostrarLog();
 }
 
 function hbBoton() {
@@ -1474,6 +1491,7 @@ async function hbEmitir() {
   if (!confirm(`Emitir ${meses.length} factura${meses.length > 1 ? "s" : ""} C a ${hb.data.contrato.inquilino}:\n\n${lista}\n\n` +
                `Antes de confirmar cada una vas a ver la vista previa acá y dar el OK.`)) return;
   document.getElementById("hbBtn").disabled = true;
+  hb.logTxt = "";   // no mostrar el registro de la corrida anterior
   for (const m of meses.filter(m => !m.factura)) {   // meses sin fila: se factura el valor del contrato
     await api("/api/humberto/monto", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ periodo: m.periodo, monto: montoDe(m) }) });
